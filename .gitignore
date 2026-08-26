@@ -1,0 +1,43 @@
+## Environment
+.env
+*.env
+!.env.example
+
+## Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+## Database
+*.db
+*.sqlite
+*.sqlite3
+
+## Logs
+*.log
+logs/
+
+## OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+## Node (future desktop/mobile/web clients)
+node_modules/
+dist/
+build/
+
+## Certificados HTTPS de desarrollo (autofirmados, generados localmente)
+certs/
+
+## Misc
+*.tmp
+.env.local

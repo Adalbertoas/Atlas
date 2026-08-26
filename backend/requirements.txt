@@ -1,0 +1,28 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+SQLAlchemy==2.0.36
+anthropic==0.42.0
+psutil==6.1.1
+python-dotenv==1.0.1
+python-multipart==0.0.32
+PyJWT==2.13.0
+Pillow==12.3.0
+PyAutoGUI==0.9.54
+cryptography==50.0.1
+
+# Voz (Fase 3)
+faster-whisper==1.2.1
+pyttsx3==2.99
+
+# Script de demo de voz (backend/scripts/voice_chat_demo.py)
+sounddevice==0.5.6
+numpy==2.5.2
+soundfile==0.14.0
+requests==2.34.2
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0
+httpx==0.28.1

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ATLAS</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <meta name="theme-color" content="#0f1115" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ---------- Pantalla de login ---------- -->
+  <section id="login-screen" class="screen">
+    <div class="login-box">
+      <div class="logo">ATLAS</div>
+      <p class="subtitle">Tu asistente personal</p>
+      <form id="login-form">
+        <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password" required />
+        <details id="advanced-details">
+          <summary>Avanzado</summary>
+          <input id="login-api-url" type="text" placeholder="URL del servidor (auto-detectada)" />
+        </details>
+        <button type="submit">Entrar</button>
+        <p id="login-error" class="error"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ---------- App principal ---------- -->
+  <section id="app-screen" class="screen hidden">
+    <header class="top-bar">
+      <span class="brand">ATLAS</span>
+      <span id="connection-status" class="status">conectando…</span>
+      <button id="logout-button" class="link-button">Salir</button>
+    </header>
+
+    <main id="views">
+      <!-- Chat -->
+      <div id="view-chat" class="view active">
+        <div id="chat-log" class="chat-log"></div>
+        <form id="chat-form" class="chat-input-row">
+          <input id="chat-input" type="text" placeholder="Escribile a ATLAS…" autocomplete="off" />
+          <button id="photo-button" type="button" title="Analizar una foto">📷</button>
+          <input id="photo-input" type="file" accept="image/*" capture="environment" class="hidden" title="Foto para analizar" />
+          <button id="voice-button" type="button" title="Hablar">🎙️</button>
+          <button type="submit">Enviar</button>
+        </form>
+      </div>
+
+      <!-- Dispositivos -->
+      <div id="view-devices" class="view">
+        <div class="view-header">
+          <h2>Dispositivos</h2>
+          <button id="refresh-devices" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="device-list" class="card-list"></div>
+      </div>
+
+      <!-- Automatizaciones -->
+      <div id="view-automations" class="view">
+        <div class="view-header">
+          <h2>Rutinas</h2>
+          <button id="refresh-automations" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="automation-list" class="card-list"></div>
+      </div>
+
+      <!-- Notificaciones -->
+      <div id="view-notifications" class="view">
+        <div class="view-header">
+          <h2>Notificaciones</h2>
+          <button id="refresh-notifications" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="notification-list" class="card-list"></div>
+      </div>
+
+      <!-- Memoria -->
+      <div id="view-memory" class="view">
+        <div class="view-header">
+          <h2>Memoria</h2>
+          <button id="refresh-memory" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="memory-list" class="card-list"></div>
+      </div>
+
+      <!-- Gestos (control del mouse de la PC con la cámara del celular) -->
+      <div id="view-gestures" class="view">
+        <div class="view-header">
+          <h2>Control por gestos</h2>
+        </div>
+        <p class="gestures-hint">
+          Usa las dos manos: con una movés el índice para mover el cursor de tu PC
+          y juntás el pulgar y el índice (pellizco) para hacer clic o arrastrar.
+          Con la otra hacés puño cerrado y lo movés arriba/abajo para hacer scroll.
+          La cámara se apaga sola si salís de esta pestaña o tocás "Desactivar".
+        </p>
+        <div class="gestures-camera-wrap">
+          <video id="gestures-video" playsinline muted class="hidden"></video>
+          <canvas id="gestures-canvas"></canvas>
+          <div id="gestures-status" class="gestures-status">Cámara apagada</div>
+        </div>
+        <button id="gestures-toggle" class="gestures-toggle-button">🖐️ Activar control por gestos</button>
+      </div>
+    </main>
+
+    <nav class="tab-bar">
+      <button class="tab-button active" data-view="chat">💬<span>Chat</span></button>
+      <button class="tab-button" data-view="devices">🏠<span>Casa</span></button>
+      <button class="tab-button" data-view="automations">⚙️<span>Rutinas</span></button>
+      <button class="tab-button" data-view="notifications">🔔<span>Avisos</span></button>
+      <button class="tab-button" data-view="memory">🧠<span>Memoria</span></button>
+      <button class="tab-button" data-view="gestures">🖐️<span>Gestos</span></button>
+    </nav>
+  </section>
+
+  <!-- Diálogo de confirmación (acciones de riesgo medio/alto) -->
+  <div id="confirm-dialog" class="dialog-overlay hidden">
+    <div class="dialog-box">
+      <p id="confirm-message"></p>
+      <div class="dialog-actions">
+        <button id="confirm-cancel" class="secondary">Cancelar</button>
+        <button id="confirm-approve">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

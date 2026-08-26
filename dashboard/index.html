@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ATLAS</title>
+  <meta name="theme-color" content="#0f1115" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ---------- Pantalla de login ---------- -->
+  <section id="login-screen" class="screen">
+    <div class="login-box">
+      <div class="logo">ATLAS</div>
+      <p class="subtitle">Panel de control</p>
+      <form id="login-form">
+        <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password" required />
+        <details id="advanced-details">
+          <summary>Avanzado</summary>
+          <input id="login-api-url" type="text" placeholder="URL del servidor (auto-detectada)" />
+        </details>
+        <button type="submit">Entrar</button>
+        <p id="login-error" class="error"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- ---------- App principal ---------- -->
+  <section id="app-screen" class="screen hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">ATLAS</div>
+      <nav class="sidebar-nav">
+        <button class="nav-button active" data-view="home"><span class="nav-icon">🏠</span>Inicio</button>
+        <button class="nav-button" data-view="chat"><span class="nav-icon">💬</span>Chat</button>
+        <button class="nav-button" data-view="devices"><span class="nav-icon">🔌</span>Dispositivos</button>
+        <button class="nav-button" data-view="automations"><span class="nav-icon">⚙️</span>Rutinas</button>
+        <button class="nav-button" data-view="notifications"><span class="nav-icon">🔔</span>Notificaciones</button>
+        <button class="nav-button" data-view="memory"><span class="nav-icon">🧠</span>Memoria</button>
+        <button class="nav-button" data-view="activity"><span class="nav-icon">📜</span>Actividad</button>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="connection-status" class="status">conectando…</span>
+        <button id="logout-button" class="link-button">Salir</button>
+      </div>
+    </aside>
+
+    <main id="views">
+      <!-- Inicio: orbe de voz + métricas del sistema -->
+      <div id="view-home" class="view active">
+        <div class="home-grid">
+          <div class="orb-panel">
+            <button id="orb-button" class="orb" title="Hablar con ATLAS">
+              <canvas id="orb-canvas" width="220" height="220"></canvas>
+              <span id="orb-icon" class="orb-icon">🎙️</span>
+            </button>
+            <p id="orb-status" class="orb-status">Tocá el orbe para hablar</p>
+          </div>
+
+          <div class="rings-panel">
+            <div class="ring-item">
+              <div class="ring" id="ring-cpu" style="--pct:0">
+                <span class="ring-value" id="ring-cpu-value">--</span>
+              </div>
+              <span class="ring-label">CPU</span>
+            </div>
+            <div class="ring-item">
+              <div class="ring" id="ring-ram" style="--pct:0">
+                <span class="ring-value" id="ring-ram-value">--</span>
+              </div>
+              <span class="ring-label">RAM</span>
+            </div>
+            <div class="ring-item">
+              <div class="ring" id="ring-disk" style="--pct:0">
+                <span class="ring-value" id="ring-disk-value">--</span>
+              </div>
+              <span class="ring-label">Disco</span>
+            </div>
+          </div>
+
+          <div class="home-widget">
+            <div class="widget-header">
+              <h2>Actividad reciente</h2>
+            </div>
+            <div id="home-activity-list" class="card-list compact"></div>
+          </div>
+
+          <div class="home-widget">
+            <div class="widget-header">
+              <h2>Dispositivos</h2>
+            </div>
+            <div id="home-device-list" class="card-list compact"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat -->
+      <div id="view-chat" class="view">
+        <div class="view-header"><h2>Chat</h2></div>
+        <div id="chat-log" class="chat-log"></div>
+        <form id="chat-form" class="chat-input-row">
+          <input id="chat-input" type="text" placeholder="Escribile a ATLAS…" autocomplete="off" />
+          <button type="submit">Enviar</button>
+        </form>
+      </div>
+
+      <!-- Dispositivos -->
+      <div id="view-devices" class="view">
+        <div class="view-header">
+          <h2>Dispositivos</h2>
+          <button id="refresh-devices" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="device-list" class="card-list"></div>
+      </div>
+
+      <!-- Automatizaciones -->
+      <div id="view-automations" class="view">
+        <div class="view-header">
+          <h2>Rutinas</h2>
+          <button id="refresh-automations" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="automation-list" class="card-list"></div>
+      </div>
+
+      <!-- Notificaciones -->
+      <div id="view-notifications" class="view">
+        <div class="view-header">
+          <h2>Notificaciones</h2>
+          <button id="refresh-notifications" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="notification-list" class="card-list"></div>
+      </div>
+
+      <!-- Memoria -->
+      <div id="view-memory" class="view">
+        <div class="view-header">
+          <h2>Memoria</h2>
+          <button id="refresh-memory" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="memory-list" class="card-list"></div>
+      </div>
+
+      <!-- Actividad (AuditLog completo) -->
+      <div id="view-activity" class="view">
+        <div class="view-header">
+          <h2>Actividad</h2>
+          <button id="refresh-activity" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="activity-list" class="card-list"></div>
+      </div>
+    </main>
+  </section>
+
+  <!-- Diálogo de confirmación (acciones de riesgo medio/alto) -->
+  <div id="confirm-dialog" class="dialog-overlay hidden">
+    <div class="dialog-box">
+      <p id="confirm-message"></p>
+      <div class="dialog-actions">
+        <button id="confirm-cancel" class="secondary">Cancelar</button>
+        <button id="confirm-approve">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
