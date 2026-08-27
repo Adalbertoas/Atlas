@@ -1,5 +1,8 @@
 "use strict";
 
+import { WakeWordEngine } from "/shared/wake-word.js";
+import { renderMarkdown } from "/shared/markdown.js";
+
 /* ---------- Config / estado ---------- */
 
 const DEFAULT_API_URL = `${location.protocol}//${location.hostname}:8000`;
@@ -85,6 +88,7 @@ function enterApp() {
   loadAutomations();
   loadNotifications();
   loadMemory();
+  loadWakeWord();
 }
 
 async function checkConnection() {
@@ -97,8 +101,11 @@ async function checkConnection() {
   }
 }
 
-/* Si ya había un token guardado, entrar directo sin pedir contraseña de nuevo. */
-if (TOKEN) enterApp();
+/* El arranque con sesión guardada NO va acá: enterApp() llama a
+   loadWakeWord(), que usa wakeEngine — declarado más abajo. A esta
+   altura está en la zona muerta temporal y tira "Cannot access
+   'wakeEngine' before initialization", dejando la página muerta.
+   Se llama al final del archivo. */
 
 /* ---------- Navegación por tabs ---------- */
 
@@ -123,19 +130,39 @@ const chatInput = document.getElementById("chat-input");
 function appendBubble(who, text) {
   const bubble = document.createElement("div");
   bubble.className = `chat-bubble ${who === "atlas" ? "atlas" : "user"}`;
-  bubble.textContent = text;
+  // Solo las respuestas de ATLAS vienen en Markdown; lo que escribe el
+  // usuario se muestra literal. renderMarkdown escapa el HTML por dentro.
+  if (who === "atlas") {
+    bubble.innerHTML = renderMarkdown(text);
+  } else {
+    bubble.textContent = text;
+  }
   chatLog.appendChild(bubble);
   chatLog.scrollTop = chatLog.scrollHeight;
 }
 
+// Burbuja de "escribiendo…" (3 puntos), mismo criterio que Claude/ChatGPT:
+// el chat puede tardar varios segundos si el modelo dispara una tool
+// (buscar en la web, clima, música) y sin esto parece que se colgó.
+function showTyping() {
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble atlas typing";
+  bubble.innerHTML = "<span class=\"dot\"></span><span class=\"dot\"></span><span class=\"dot\"></span>";
+  chatLog.appendChild(bubble);
+  chatLog.scrollTop = chatLog.scrollHeight;
+  return bubble;
+}
+
 async function sendChat(message) {
   appendBubble("user", message);
+  const typingBubble = showTyping();
   try {
     const result = await api("/api/v1/chat", {
       method: "POST",
       body: JSON.stringify({ message, conversation_id: CONVERSATION_ID }),
     });
     CONVERSATION_ID = result.conversation_id;
+    typingBubble.remove();
     if (result.requires_confirmation) {
       askConfirmation(result.confirmation_id, result.confirmation_description);
     } else if (result.reply) {
@@ -143,6 +170,7 @@ async function sendChat(message) {
       speak(result.reply);
     }
   } catch (err) {
+    typingBubble.remove();
     appendBubble("atlas", `(error: ${err.message})`);
   }
 }
@@ -176,6 +204,10 @@ async function resolveConfirmation(approve) {
       body: JSON.stringify({ confirmation_id: pendingConfirmationId, approve }),
     });
     appendBubble("atlas", result.reply);
+    // Hablar acá también: sin esto, todo lo que pasa por confirmación
+    // respondía mudo y parecía que la voz fallaba al azar — en realidad
+    // dependía de QUÉ se pedía, no de cuándo.
+    if (result.reply) speak(result.reply);
   } catch (err) {
     appendBubble("atlas", `(error: ${err.message})`);
   }
@@ -216,14 +248,19 @@ voiceButton.addEventListener("click", async () => {
 async function transcribeAndSend(blob) {
   const form = new FormData();
   form.append("audio", blob, "audio.webm");
+  let spoke = false;
   try {
     const result = await api("/api/v1/voice/transcribe", { method: "POST", body: form });
     if (result.text && result.text.trim()) {
+      spoke = true; // sendChat dispara speak(), que reanuda la escucha al terminar
       await sendChat(result.text);
+    } else if (wakeEngine.isActive) {
+      appendBubble("atlas", "(No entendí el comando, sigo atento.)");
     }
   } catch (err) {
     appendBubble("atlas", `(error transcribiendo: ${err.message})`);
   }
+  if (!spoke) resumeWakeIfActive();
 }
 
 /* ---------- Foto (Fase 8: Visión) ---------- */
@@ -250,14 +287,116 @@ photoInput.addEventListener("change", async () => {
   }
 });
 
+/* ---------- Reproducción de la voz de ATLAS ---------- */
+/* Los navegadores móviles son mucho más estrictos que los de escritorio con
+   el autoplay: el permiso nace de un toque del usuario y **caduca**. El
+   permiso de tocar "Enviar" ya no vale cuando el audio llega, varios
+   segundos después (respuesta de Claude + síntesis). Resultado: en el
+   celular no sonaba casi nunca.
+
+   La solución estándar es no crear un `new Audio()` por respuesta, sino
+   reutilizar SIEMPRE el mismo elemento y "desbloquearlo" en el primer toque
+   del usuario. Una vez desbloqueado, se le puede cambiar el `src` y
+   reproducir sin gesto nuevo. */
+
+const speechAudio = new Audio();
+speechAudio.preload = "auto";
+// Dentro del DOM y no suelto: algunos navegadores móviles solo reproducen
+// de forma confiable elementos que están en el documento.
+speechAudio.hidden = true;
+document.body.appendChild(speechAudio);
+let audioUnlocked = false;
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  // Un WAV mínimo y silencioso: alcanza para que el navegador marque el
+  // elemento como autorizado por el usuario.
+  speechAudio.src =
+    "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+  speechAudio.play().then(() => {
+    speechAudio.pause();
+    speechAudio.currentTime = 0;
+    audioUnlocked = true;
+  }).catch(() => {
+    /* se reintenta en el próximo toque */
+  });
+}
+// `once: false`: si el primer intento falla (algunos navegadores exigen que
+// el gesto sea sobre un control real), se vuelve a probar en el siguiente.
+document.addEventListener("pointerdown", unlockAudio);
+document.addEventListener("touchstart", unlockAudio);
+document.addEventListener("keydown", unlockAudio);
+
 async function speak(text) {
   try {
     const response = await api("/api/v1/voice/speak", { method: "POST", body: JSON.stringify({ text }) });
     const blob = await response.blob();
-    const audio = new Audio(URL.createObjectURL(blob));
-    audio.play().catch(() => {}); // el navegador puede bloquear autoplay sin interacción previa
+
+    // La escucha continua se reanuda recién cuando ATLAS terminó de hablar:
+    // mientras suena, su propia voz por el parlante volvería a dispararla.
+    speechAudio.onended = resumeWakeIfActive;
+    speechAudio.onerror = resumeWakeIfActive;
+    speechAudio.src = URL.createObjectURL(blob);
+
+    try {
+      await speechAudio.play();
+    } catch (err) {
+      // Si ni así deja, el texto ya se mostró — pero hay que decirlo: en
+      // silencio parece que ATLAS ignoró el pedido.
+      appendBubble("atlas", `(No pude reproducir el audio: ${err.message}. Tocá la pantalla y volvé a pedirlo.)`);
+      resumeWakeIfActive();
+    }
   } catch {
     /* la respuesta de texto ya se mostró; el audio es un extra */
+    resumeWakeIfActive();
+  }
+}
+
+/* ---------- Shazam (Fase 10: reconocimiento de canciones, vía AudD) ---------- */
+
+const shazamButton = document.getElementById("shazam-button");
+const SHAZAM_RECORD_MS = 6000; // AudD recomienda 3-10s de audio para reconocer bien
+
+shazamButton.addEventListener("click", async () => {
+  if (shazamButton.disabled) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks = [];
+    const recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = (e) => chunks.push(e.data);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop());
+      shazamButton.classList.remove("recording");
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      await identifySong(blob);
+    };
+    recorder.start();
+    shazamButton.classList.add("recording");
+    shazamButton.disabled = true;
+    appendBubble("user", "🎵 (escuchando la canción...)");
+    setTimeout(() => recorder.stop(), SHAZAM_RECORD_MS);
+  } catch (err) {
+    appendBubble("atlas", `(no pude acceder al micrófono: ${err.message})`);
+  }
+});
+
+async function identifySong(blob) {
+  const form = new FormData();
+  form.append("audio", blob, "audio.webm");
+  try {
+    const result = await api("/api/v1/music/identify", { method: "POST", body: form });
+    if (!result.found) {
+      appendBubble("atlas", "No reconocí ninguna canción — probá de nuevo con más volumen.");
+    } else {
+      let reply = `🎵 ${result.title} — ${result.artist}`;
+      if (result.album) reply += ` (${result.album})`;
+      if (result.song_link) reply += `\n${result.song_link}`;
+      appendBubble("atlas", reply);
+    }
+  } catch (err) {
+    appendBubble("atlas", `(error reconociendo la canción: ${err.message})`);
+  } finally {
+    shazamButton.disabled = false;
   }
 }
 
@@ -601,6 +740,131 @@ gesturesToggle.addEventListener("click", () => {
   else startGestures();
 });
 
+/* ---------- Escucha continua (wake word) ---------- */
+/* Mismo motor que el dashboard (shared/wake-word.js) y misma estrategia que
+   el cliente de escritorio: buffer deslizante + filtro de energía local +
+   Whisper. Apagado por defecto: mantiene el micrófono abierto de forma
+   continua, y en un celular eso además consume batería, así que tiene que
+   ser una decisión explícita. */
+
+const wakeButton = document.getElementById("wake-button");
+// Valor de respaldo: el real lo define el backend (ATLAS_WAKE_WORD), para
+// que escritorio, dashboard y PWA no puedan quedar con palabras distintas.
+let WAKE_WORD = "ali";
+
+const wakeEngine = new WakeWordEngine({
+  workletUrl: "/shared/wake-processor.js",
+  wakeWord: WAKE_WORD,
+  transcribe: async (wavBlob) => {
+    const form = new FormData();
+    form.append("audio", wavBlob, "wake.wav");
+    const result = await api("/api/v1/voice/transcribe", { method: "POST", body: form });
+    return result.text || "";
+  },
+  onActivated: onWakeWordDetected,
+  onStatus: (state, detail) => {
+    if (state === "error") {
+      appendBubble("atlas", `(${detail})`);
+      wakeButton.classList.remove("active");
+    }
+  },
+});
+
+async function loadWakeWord() {
+  try {
+    const profile = await api("/api/v1/settings/profile");
+    WAKE_WORD = profile.wake_word || WAKE_WORD;
+    wakeEngine._wakeWord = WAKE_WORD;
+  } catch {
+    /* se queda con el valor de respaldo */
+  }
+  wakeButton.title = `Escucha continua: decí "${WAKE_WORD}" sin tocar nada`;
+}
+
+function resumeWakeIfActive() {
+  if (wakeEngine.isActive) wakeEngine.resume();
+}
+
+wakeButton.addEventListener("click", async () => {
+  if (wakeEngine.isActive) {
+    wakeEngine.stop();
+    wakeButton.classList.remove("active");
+    return;
+  }
+  await wakeEngine.start();
+  wakeButton.classList.toggle("active", wakeEngine.isActive);
+  if (wakeEngine.isActive) {
+    appendBubble("atlas", `(Escucha continua activada — decí "${WAKE_WORD}".)`);
+  }
+});
+
+/* Al detectar la palabra: pausar la escucha (si no, ATLAS se oye a sí mismo
+   por el parlante y se vuelve a disparar), grabar el comando cortando por
+   silencio, y reanudar. Mismo criterio que el cliente de escritorio. */
+const COMMAND_MAX_MS = 9000;
+const COMMAND_SILENCE_MS = 1600;
+
+async function onWakeWordDetected() {
+  wakeEngine.pause();
+  document.querySelector('.tab-button[data-view="chat"]').click();
+  appendBubble("atlas", "(Te escuché — decime qué necesitás.)");
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    appendBubble("atlas", `(no pude acceder al micrófono: ${err.message})`);
+    resumeWakeIfActive();
+    return;
+  }
+
+  // Detección de silencio con Web Audio, para cortar solo: tras el wake word
+  // nadie va a tocar "detener".
+  const context = new (window.AudioContext || window.webkitAudioContext)();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 512;
+  context.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Uint8Array(analyser.frequencyBinCount);
+
+  const chunks = [];
+  const recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = (e) => chunks.push(e.data);
+  recorder.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop());
+    context.close().catch(() => {});
+    voiceButton.classList.remove("recording");
+    await transcribeAndSend(new Blob(chunks, { type: recorder.mimeType || "audio/webm" }));
+  };
+  recorder.start();
+  voiceButton.classList.add("recording");
+
+  const startedAt = Date.now();
+  let lastSpeechAt = Date.now();
+  let heardSpeech = false;
+
+  const watch = () => {
+    if (recorder.state !== "recording") return;
+    analyser.getByteTimeDomainData(samples);
+    let peak = 0;
+    for (let i = 0; i < samples.length; i++) {
+      peak = Math.max(peak, Math.abs((samples[i] - 128) / 128));
+    }
+    if (peak >= 0.045) {
+      heardSpeech = true;
+      lastSpeechAt = Date.now();
+    }
+    // Solo corta por silencio si antes escuchó algo: si no, esperaría el tope
+    // duro cuando la palabra se detectó por un falso positivo.
+    const quietFor = Date.now() - lastSpeechAt;
+    if (Date.now() - startedAt >= COMMAND_MAX_MS || (heardSpeech && quietFor >= COMMAND_SILENCE_MS)) {
+      recorder.stop();
+      return;
+    }
+    setTimeout(watch, 150);
+  };
+  setTimeout(watch, 400); // margen para que el usuario empiece a hablar
+}
+
 /* ---------- Service worker (PWA instalable) ---------- */
 
 if ("serviceWorker" in navigator) {
@@ -608,3 +872,12 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   });
 }
+
+
+/* ---------- Arranque ---------- */
+/* Última línea a propósito: con sesión guardada esto entra directo a la
+   app, y enterApp() toca constantes declaradas a lo largo de todo el
+   módulo. El login manual no tiene el problema porque corre desde un
+   evento, ya evaluado el módulo entero — por eso el bug solo aparecía
+   al recargar estando ya logueado. */
+if (TOKEN) enterApp();

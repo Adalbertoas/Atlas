@@ -185,6 +185,25 @@ details {
   border-bottom-left-radius: 4px;
 }
 
+/* Burbuja de "ATLAS está pensando/buscando" mientras se espera la
+   respuesta — mismo criterio visual que Claude/ChatGPT: tres puntos
+   que rebotan, para que quede claro que el mensaje sí se mandó y el
+   silencio es una tool corriendo (web, clima, música), no que se colgó. */
+.chat-bubble.typing { display: flex; align-items: center; gap: 4px; padding: 12px 16px; }
+.chat-bubble.typing .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  animation: chat-typing-bounce 1.2s infinite ease-in-out;
+}
+.chat-bubble.typing .dot:nth-child(2) { animation-delay: 0.15s; }
+.chat-bubble.typing .dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes chat-typing-bounce {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
 .chat-input-row {
   display: flex;
   gap: 8px;
@@ -212,7 +231,9 @@ details {
   cursor: pointer;
 }
 #voice-button,
-#photo-button {
+#photo-button,
+#shazam-button,
+#wake-button {
   background: var(--card);
   color: var(--text);
   border: 1px solid var(--border);
@@ -220,9 +241,15 @@ details {
   padding: 0;
   font-size: 1.1rem;
 }
-#voice-button.recording {
+#wake-button.active { background: var(--accent); color: #041014; }
+#voice-button.recording,
+#shazam-button.recording {
   background: var(--danger);
   color: white;
+}
+#shazam-button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* ---------- Cards (dispositivos, rutinas, notificaciones, memoria) ---------- */
@@ -392,3 +419,64 @@ details {
   font-size: 0.95rem;
   cursor: pointer;
 }
+
+
+/* ---------- Markdown renderizado en las burbujas ---------- */
+/* Los saltos vienen como <br> del renderizador compartido, así que acá no
+   va pre-wrap: dejarlo activo los duplicaba. */
+.chat-bubble.atlas { white-space: normal; }
+.chat-bubble.atlas h3,
+.chat-bubble.atlas h4,
+.chat-bubble.atlas h5,
+.chat-bubble.atlas h6 {
+  margin: 10px 0 5px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.chat-bubble.atlas h3:first-child,
+.chat-bubble.atlas h4:first-child { margin-top: 0; }
+.chat-bubble.atlas strong { font-weight: 600; color: #fff; }
+.chat-bubble.atlas em { font-style: italic; }
+.chat-bubble.atlas del { opacity: 0.6; }
+.chat-bubble.atlas ul,
+.chat-bubble.atlas ol { margin: 6px 0; padding-left: 20px; }
+.chat-bubble.atlas li { margin: 3px 0; }
+.chat-bubble.atlas a { color: var(--accent); }
+
+/* Tarjeta con miniatura para links de YouTube dentro del chat — para que
+   "buscá X en YouTube" muestre algo más que una URL pelada. */
+.chat-link-card {
+  display: block;
+  margin: 6px 0;
+  max-width: 220px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.chat-link-card:hover { text-decoration: none !important; border-color: var(--accent); }
+.chat-link-card img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--bg); }
+.chat-link-card-label {
+  display: block;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.chat-bubble.atlas code {
+  background: rgba(79, 195, 247, 0.12);
+  color: var(--accent);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-family: Consolas, Menlo, monospace;
+}
+.chat-bubble.atlas pre {
+  margin: 8px 0;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto; /* el código largo scrollea solo, no ensancha la burbuja */
+}
+.chat-bubble.atlas pre code { background: none; color: var(--text); padding: 0; }

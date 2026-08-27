@@ -44,6 +44,8 @@
           <input id="chat-input" type="text" placeholder="Escribile a ATLAS…" autocomplete="off" />
           <button id="photo-button" type="button" title="Analizar una foto">📷</button>
           <input id="photo-input" type="file" accept="image/*" capture="environment" class="hidden" title="Foto para analizar" />
+          <button id="shazam-button" type="button" title="Reconocer una canción">🎵</button>
+          <button id="wake-button" type="button" title="Escucha continua">👂</button>
           <button id="voice-button" type="button" title="Hablar">🎙️</button>
           <button type="submit">Enviar</button>
         </form>
@@ -126,6 +128,8 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- type="module": app.js importa el wake word y el renderizador
+       de Markdown compartidos con el dashboard (shared/). -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -26,6 +26,9 @@ CERT_PATH = DIRECTORY.parent / "certs" / "dev-cert.pem"
 KEY_PATH = DIRECTORY.parent / "certs" / "dev-key.pem"
 
 
+SHARED_DIR = DIRECTORY.parent / "shared"
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, directory=str(DIRECTORY), **kwargs)
@@ -33,7 +36,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
         # Necesario para que el service worker pueda cachear/controlar la página.
         self.send_header("Service-Worker-Allowed", "/")
+        # Sin caché HTTP: es un servidor de desarrollo. El service worker sí
+        # cachea (por eso existe), pero la caché del navegador encima de eso
+        # solo causa confusión — dejó la página con un index.html viejo y un
+        # app.js nuevo incompatibles, y todos los botones muertos.
+        self.send_header("Cache-Control", "no-store, must-revalidate")
         super().end_headers()
+
+    def translate_path(self, path: str) -> str:
+        """Mapea /shared/* a la carpeta shared/ de la raíz del repo — el wake
+        word del navegador es el mismo código que usa el dashboard, y tener
+        dos copias garantizaría que se desincronicen."""
+        if path.startswith("/shared/"):
+            relative = path[len("/shared/") :].split("?", 1)[0].split("#", 1)[0]
+            # Sin '..' ni rutas absolutas: este servidor escucha en la red.
+            safe = (SHARED_DIR / relative).resolve()
+            if safe.is_relative_to(SHARED_DIR.resolve()):
+                return str(safe)
+        return super().translate_path(path)
 
 
 def _local_ip() -> str:

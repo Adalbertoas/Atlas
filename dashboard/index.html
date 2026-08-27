@@ -4,16 +4,72 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ATLAS</title>
-  <meta name="theme-color" content="#0f1115" />
+  <meta name="theme-color" content="#060a10" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M24 8 L38 34 H10 Z' fill='none' stroke='%2322d3ee' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
+  <!-- Logo reutilizable (sidebar, login, orbe). SVG inline para que herede
+       currentColor y no dependa de un archivo externo. -->
+  <svg class="svg-defs" aria-hidden="true">
+    <symbol id="atlas-mark" viewBox="0 0 48 48">
+      <path d="M24 8 L38 34 H10 Z" fill="none" stroke="currentColor" stroke-width="3"
+            stroke-linejoin="round" />
+      <path d="M24 20 L30 32 H18 Z" fill="currentColor" opacity="0.85" />
+    </symbol>
+    <!-- Set de iconos propio, en SVG y no como glifos de fuente. Dos razones:
+         1) sin emojis (pedido del usuario) — el trazo monocromo hereda
+            currentColor y encaja con el resto del diseño;
+         2) los glifos Unicode dependen de qué tenga instalada la fuente:
+            ⏻ y ◔ ya habían salido como cuadraditos vacíos en Segoe UI.
+         Todos comparten viewBox 24x24 y trazo de 1.7. -->
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4Z"/></symbol>
+    <symbol id="i-devices" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/></symbol>
+    <symbol id="i-automation" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></symbol>
+    <symbol id="i-reminder" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-memory" viewBox="0 0 24 24"><path d="M9 4.5a3 3 0 0 0-3 3 3 3 0 0 0-1 5.8V16a3 3 0 0 0 4 2.8V4.5Z"/><path d="M15 4.5a3 3 0 0 1 3 3 3 3 0 0 1 1 5.8V16a3 3 0 0 1-4 2.8V4.5Z"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11m0 0V4.5a1.5 1.5 0 0 1 3 0V11m0 0V6.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-1a6 6 0 0 1-5.2-3l-2-3.5a1.6 1.6 0 0 1 2.7-1.7L9 14Z"/></symbol>
+    <symbol id="i-tools" viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 1 5 5l-9 9-5-5 9-9Z"/><path d="m5 15 4 4"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 16v-5a6 6 0 1 0-12 0v5l-2 2h16Z"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="m12 3 2 4.5 4.5 2-4.5 2L12 16l-2-4.5L5.5 9.5 10 7.5Z"/><path d="m18 15 1 2.2 2.2 1-2.2 1L18 21.5 17 19.2 14.8 18.2l2.2-1Z"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></symbol>
+    <!-- Tipos de dispositivo -->
+    <symbol id="i-light" viewBox="0 0 24 24"><path d="M9.5 17a6 6 0 1 1 5 0v1.5h-5Z"/><path d="M10 21h4"/></symbol>
+    <symbol id="i-switch" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v4"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M7 4v5a5 5 0 0 0 10 0V4"/><path d="M10 4V2m4 2V2M12 14v6"/></symbol>
+    <symbol id="i-fan" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 10c0-4 1-6 3.5-6S18 8 12 10Zm2 2c4 0 6 1 6 3.5S16 18 14 12Zm-2 2c0 4-1 6-3.5 6S6 16 12 14Zm-2-2c-4 0-6-1-6-3.5S8 6 10 12Z"/></symbol>
+    <symbol id="i-tv" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="12" cy="12.5" r="3.5"/></symbol>
+    <symbol id="i-sensor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4m8.4-8.4a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2m14.2-14.2a10 10 0 0 1 0 14.2"/></symbol>
+    <symbol id="i-climate" viewBox="0 0 24 24"><path d="M12 3v18M5 7.5l14 9M19 7.5l-14 9"/></symbol>
+    <!-- Gestos -->
+    <symbol id="i-pointer" viewBox="0 0 24 24"><path d="m6 3 12 8-5 1.5L16 19l-2.5 1.2L10.5 14 6 17Z"/></symbol>
+    <symbol id="i-pinch" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/></symbol>
+    <symbol id="i-fist" viewBox="0 0 24 24"><path d="M6 12a6 6 0 0 1 6-6h4a3 3 0 0 1 0 6H10"/><path d="M6 12v3a5 5 0 0 0 5 5h3a5 5 0 0 0 5-5v-3"/></symbol>
+    <!-- Atajos y varios -->
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5m0 15V22M2 12h2.5m15 0H22M4.9 4.9l1.8 1.8m10.6 10.6 1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z"/></symbol>
+    <symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8 5 12l4 4M5 12h10"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v9M6.5 6.5a8 8 0 1 0 11 0"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5 19 12 7 19.5Z"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></symbol>
+    <symbol id="i-work" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-alarm" viewBox="0 0 24 24"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 1.5M5 4 2.5 6.5M19 4l2.5 2.5"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0"/><path d="m12 13 4-3"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><circle cx="7" cy="18" r="3"/><circle cx="18" cy="15.5" r="3"/><path d="M10 18V6l11-2.5V15.5"/></symbol>
+    <symbol id="i-ear" viewBox="0 0 24 24"><path d="M7 9a5 5 0 0 1 10 0c0 3-2.5 4-3.5 5.5S12 18 12 19a2.5 2.5 0 0 1-5 0"/><path d="M10.5 9a1.5 1.5 0 0 1 3 0"/></symbol>
+  </svg>
+
   <!-- ---------- Pantalla de login ---------- -->
   <section id="login-screen" class="screen">
     <div class="login-box">
+      <div class="login-mark"><svg><use href="#atlas-mark" /></svg></div>
       <div class="logo">ATLAS</div>
-      <p class="subtitle">Panel de control</p>
+      <p class="subtitle">Tu asistente personal inteligente</p>
       <form id="login-form">
         <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password" required />
         <details id="advanced-details">
@@ -28,127 +84,392 @@
 
   <!-- ---------- App principal ---------- -->
   <section id="app-screen" class="screen hidden">
+
+    <!-- ===== Sidebar ===== -->
     <aside class="sidebar">
-      <div class="sidebar-brand">ATLAS</div>
+      <div class="sidebar-brand">
+        <span class="brand-mark"><svg><use href="#atlas-mark" /></svg></span>
+        <span class="brand-name">ATLAS</span>
+      </div>
+
       <nav class="sidebar-nav">
-        <button class="nav-button active" data-view="home"><span class="nav-icon">🏠</span>Inicio</button>
-        <button class="nav-button" data-view="chat"><span class="nav-icon">💬</span>Chat</button>
-        <button class="nav-button" data-view="devices"><span class="nav-icon">🔌</span>Dispositivos</button>
-        <button class="nav-button" data-view="automations"><span class="nav-icon">⚙️</span>Rutinas</button>
-        <button class="nav-button" data-view="notifications"><span class="nav-icon">🔔</span>Notificaciones</button>
-        <button class="nav-button" data-view="memory"><span class="nav-icon">🧠</span>Memoria</button>
-        <button class="nav-button" data-view="activity"><span class="nav-icon">📜</span>Actividad</button>
+        <button class="nav-button active" data-view="home">
+          <span class="nav-icon"><svg><use href="#i-home"/></svg></span><span>Inicio</span>
+        </button>
+        <button class="nav-button" data-view="chat">
+          <span class="nav-icon"><svg><use href="#i-chat"/></svg></span><span>Conversación</span>
+        </button>
+        <button class="nav-button" data-view="devices">
+          <span class="nav-icon"><svg><use href="#i-devices"/></svg></span><span>Dispositivos</span>
+        </button>
+        <button class="nav-button" data-view="automations">
+          <span class="nav-icon"><svg><use href="#i-automation"/></svg></span><span>Automatizaciones</span>
+        </button>
+        <button class="nav-button" data-view="reminders">
+          <span class="nav-icon"><svg><use href="#i-reminder"/></svg></span><span>Recordatorios</span>
+        </button>
+        <button class="nav-button" data-view="memory">
+          <span class="nav-icon"><svg><use href="#i-memory"/></svg></span><span>Memoria</span>
+        </button>
+        <button class="nav-button" data-view="gestures">
+          <span class="nav-icon"><svg><use href="#i-hand"/></svg></span><span>Gestos</span>
+        </button>
+        <button class="nav-button" data-view="tools">
+          <span class="nav-icon"><svg><use href="#i-tools"/></svg></span><span>Herramientas</span>
+        </button>
+        <button class="nav-button" data-view="activity">
+          <span class="nav-icon"><svg><use href="#i-activity"/></svg></span><span>Actividad</span>
+        </button>
+        <button class="nav-button" data-view="notifications">
+          <span class="nav-icon"><svg><use href="#i-bell"/></svg></span><span>Notificaciones</span>
+          <span id="nav-notification-badge" class="nav-badge hidden"></span>
+        </button>
+        <button class="nav-button" data-view="settings">
+          <span class="nav-icon"><svg><use href="#i-settings"/></svg></span><span>Configuración</span>
+        </button>
       </nav>
+
       <div class="sidebar-footer">
-        <span id="connection-status" class="status">conectando…</span>
-        <button id="logout-button" class="link-button">Salir</button>
+        <span class="status-dot" id="status-dot"></span>
+        <div class="status-text">
+          <strong id="connection-status">Conectando…</strong>
+          <small id="connection-detail">Buscando el servidor</small>
+        </div>
       </div>
     </aside>
 
-    <main id="views">
-      <!-- Inicio: orbe de voz + métricas del sistema -->
-      <div id="view-home" class="view active">
-        <div class="home-grid">
-          <div class="orb-panel">
-            <button id="orb-button" class="orb" title="Hablar con ATLAS">
-              <canvas id="orb-canvas" width="220" height="220"></canvas>
-              <span id="orb-icon" class="orb-icon">🎙️</span>
-            </button>
-            <p id="orb-status" class="orb-status">Tocá el orbe para hablar</p>
-          </div>
+    <!-- ===== Panel principal ===== -->
+    <div class="main-wrap">
+      <header class="top-bar">
+        <div class="top-title">
+          <h1>ATLAS</h1>
+          <p>Tu asistente personal inteligente</p>
+        </div>
+        <div class="top-actions">
+          <!-- Visible desde cualquier vista mientras la cámara esté capturando:
+               el control por gestos sigue activo al navegar, así que nunca
+               debe quedar corriendo sin que se note. Clic = ir a apagarlo. -->
+          <button type="button" id="gesture-live-indicator" class="live-indicator hidden"
+                  title="Control por gestos activo — clic para administrarlo">
+            <span class="live-dot"></span>Gestos activos
+          </button>
+          <button type="button" id="top-notifications" class="icon-button" title="Notificaciones">
+            <svg><use href="#i-bell"/></svg>
+          </button>
+          <button type="button" id="logout-button" class="icon-button" title="Cerrar sesión">
+            <svg><use href="#i-exit"/></svg>
+          </button>
+        </div>
+      </header>
 
-          <div class="rings-panel">
-            <div class="ring-item">
-              <div class="ring" id="ring-cpu" style="--pct:0">
-                <span class="ring-value" id="ring-cpu-value">--</span>
+      <main id="views">
+
+        <!-- ========== INICIO ========== -->
+        <div id="view-home" class="view active">
+          <div class="home-grid">
+
+            <!-- Hero: orbe + saludo + entrada -->
+            <section class="hero panel">
+              <div class="hero-visual">
+                <canvas id="hero-wave-left" class="hero-wave" width="420" height="150"></canvas>
+                <button id="orb-button" class="orb" title="Hablar con ATLAS">
+                  <canvas id="orb-canvas" width="260" height="260"></canvas>
+                  <span class="orb-mark"><svg><use href="#atlas-mark" /></svg></span>
+                </button>
+                <canvas id="hero-wave-right" class="hero-wave" width="420" height="150"></canvas>
               </div>
-              <span class="ring-label">CPU</span>
-            </div>
-            <div class="ring-item">
-              <div class="ring" id="ring-ram" style="--pct:0">
-                <span class="ring-value" id="ring-ram-value">--</span>
+
+              <h2 id="greeting" class="greeting">¡Hola!</h2>
+              <p id="orb-status" class="greeting-sub">¿En qué puedo ayudarte hoy?</p>
+
+              <form id="hero-form" class="hero-input">
+                <input id="hero-input" type="text" placeholder="Escribe tu mensaje o presiona el micrófono…" autocomplete="off" />
+                <button type="button" id="hero-mic" class="hero-mic" title="Hablar"><svg><use href="#i-mic"/></svg></button>
+              </form>
+
+              <div id="quick-actions" class="quick-actions"></div>
+            </section>
+
+            <!-- Sistema -->
+            <section class="panel sys-panel">
+              <div class="panel-head"><h3>Sistema</h3></div>
+
+              <div class="rings-row">
+                <div class="ring-item">
+                  <div class="ring" id="ring-cpu" style="--pct:0"><span class="ring-value" id="ring-cpu-value">--</span></div>
+                  <span class="ring-label">CPU</span>
+                </div>
+                <div class="ring-item">
+                  <div class="ring" id="ring-ram" style="--pct:0"><span class="ring-value" id="ring-ram-value">--</span></div>
+                  <span class="ring-label">RAM</span>
+                </div>
+                <div class="ring-item">
+                  <div class="ring" id="ring-disk" style="--pct:0"><span class="ring-value" id="ring-disk-value">--</span></div>
+                  <span class="ring-label">Disco</span>
+                </div>
               </div>
-              <span class="ring-label">RAM</span>
-            </div>
-            <div class="ring-item">
-              <div class="ring" id="ring-disk" style="--pct:0">
-                <span class="ring-value" id="ring-disk-value">--</span>
+
+              <div class="metric-row">
+                <div class="metric">
+                  <span class="metric-label">Red</span>
+                  <span class="metric-value" id="metric-net">-- Mbps</span>
+                  <canvas class="sparkline" id="spark-net" width="150" height="34"></canvas>
+                </div>
+                <!-- La tarjeta de temperatura se oculta si el equipo no expone
+                     el sensor (muchas placas de escritorio no lo hacen) — ver
+                     cpu_temp_c en /api/v1/system/status. -->
+                <div class="metric hidden" id="metric-temp-wrap">
+                  <span class="metric-label">Temperatura</span>
+                  <span class="metric-value" id="metric-temp">-- °C</span>
+                  <canvas class="sparkline" id="spark-temp" width="150" height="34"></canvas>
+                </div>
               </div>
-              <span class="ring-label">Disco</span>
+
+              <div class="metric-footer">
+                <span class="metric-label">Encendida hace</span>
+                <span class="metric-value small" id="metric-uptime">--</span>
+              </div>
+            </section>
+
+            <!-- Recordatorios -->
+            <section class="panel reminders-panel">
+              <div class="panel-head">
+                <h3>Recordatorios</h3>
+                <button class="link-button" data-goto="reminders">Ver todos ›</button>
+              </div>
+              <div id="home-reminder-list" class="mini-list"></div>
+            </section>
+
+            <!-- Dispositivos -->
+            <section class="panel devices-panel">
+              <div class="panel-head">
+                <h3>Dispositivos</h3>
+                <button class="link-button" data-goto="devices">Ver todos ›</button>
+              </div>
+              <div class="segmented" id="device-filter">
+                <button class="seg-button active" data-filter="all">Todos</button>
+                <button class="seg-button" data-filter="rooms">Salas</button>
+                <button class="seg-button" data-filter="types">Tipos</button>
+              </div>
+              <div id="home-device-list" class="mini-list scroll"></div>
+            </section>
+
+            <!-- Acciones rápidas -->
+            <section class="panel actions-panel">
+              <div class="panel-head"><h3>Acciones rápidas</h3></div>
+              <div id="routine-shortcuts" class="shortcut-grid"></div>
+            </section>
+
+            <!-- Automatizaciones -->
+            <section class="panel automations-panel">
+              <div class="panel-head">
+                <h3>Automatizaciones</h3>
+                <button class="link-button" data-goto="automations">Ver todas ›</button>
+              </div>
+              <div id="home-automation-list" class="mini-list scroll"></div>
+            </section>
+
+            <!-- Actividad reciente -->
+            <section class="panel activity-panel">
+              <div class="panel-head">
+                <h3>Actividad reciente</h3>
+                <button class="link-button" data-goto="activity">Ver historial ›</button>
+              </div>
+              <div id="home-activity-list" class="timeline scroll"></div>
+            </section>
+
+            <!-- Estado de la casa -->
+            <section class="panel house-panel">
+              <div class="panel-head"><h3>Estado de la casa</h3></div>
+              <div class="house-body">
+                <div class="house-viz">
+                  <div class="house-ring"><span class="house-icon"><svg><use href="#i-home"/></svg></span></div>
+                </div>
+                <div class="house-stats">
+                  <strong id="house-headline" class="house-headline">—</strong>
+                  <small id="house-count" class="house-sub">Sin datos</small>
+                  <ul class="house-list">
+                    <li><span class="dot on"></span><span id="house-on">0 encendidos</span></li>
+                    <li><span class="dot off"></span><span id="house-off">0 apagados</span></li>
+                    <!-- Estas dos filas se ocultan solas si no hay cerraduras
+                         ni ningún sensor que informe temperatura. -->
+                    <li id="house-security" class="hidden"><span class="dot on"></span><span></span></li>
+                    <li id="house-temp" class="hidden"><span class="dot temp"></span><span></span></li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </div>
+
+        <!-- ========== CONVERSACIÓN ========== -->
+        <div id="view-chat" class="view">
+          <div class="view-header"><h2>Conversación</h2></div>
+          <div id="chat-log" class="chat-log"></div>
+          <form id="chat-form" class="chat-input-row">
+            <input id="chat-input" type="text" placeholder="Escribile a ATLAS…" autocomplete="off" />
+            <button type="submit">Enviar</button>
+          </form>
+        </div>
+
+        <!-- ========== DISPOSITIVOS ========== -->
+        <div id="view-devices" class="view">
+          <div class="view-header">
+            <h2>Dispositivos</h2>
+            <button id="refresh-devices" class="link-button">↻ Actualizar</button>
+          </div>
+          <div id="device-list" class="card-list"></div>
+        </div>
+
+        <!-- ========== AUTOMATIZACIONES ========== -->
+        <div id="view-automations" class="view">
+          <div class="view-header">
+            <h2>Automatizaciones</h2>
+            <button id="refresh-automations" class="link-button">↻ Actualizar</button>
+          </div>
+          <div id="automation-list" class="card-list"></div>
+        </div>
+
+        <!-- ========== RECORDATORIOS ========== -->
+        <div id="view-reminders" class="view">
+          <div class="view-header">
+            <h2>Recordatorios</h2>
+            <button id="refresh-reminders" class="link-button">↻ Actualizar</button>
+          </div>
+          <form id="reminder-form" class="inline-form">
+            <input id="reminder-text" type="text" placeholder="¿Qué querés recordar?" required />
+            <input id="reminder-due" type="datetime-local" title="Fecha y hora del recordatorio" required />
+            <button type="submit">Agregar</button>
+          </form>
+          <div id="reminder-list" class="card-list"></div>
+        </div>
+
+        <!-- ========== MEMORIA ========== -->
+        <div id="view-memory" class="view">
+          <div class="view-header">
+            <h2>Memoria</h2>
+            <button id="refresh-memory" class="link-button">↻ Actualizar</button>
+          </div>
+          <div id="memory-list" class="card-list"></div>
+        </div>
+
+        <!-- ========== GESTOS ==========
+             Dos fuentes posibles, misma función: la cámara de ESTA PC
+             (abajo) o la del celular vía la PWA. Ambas mandan al mismo
+             WebSocket y mueven el mouse de esta máquina. -->
+        <div id="view-gestures" class="view">
+          <div class="view-header"><h2>Control por gestos</h2></div>
+          <p class="view-hint">
+            Mové el mouse de esta PC con la mano. Podés usar la cámara de esta misma
+            computadora, o la del celular desde la PWA — las dos hacen lo mismo.
+          </p>
+
+          <div class="gesture-grid">
+            <section class="panel gesture-camera-panel">
+              <div class="panel-head">
+                <h3>Cámara de esta PC</h3>
+                <span class="badge" id="gesture-local-badge">Apagada</span>
+              </div>
+              <div class="gesture-camera-wrap">
+                <video id="gesture-video" playsinline muted class="hidden"></video>
+                <canvas id="gesture-canvas"></canvas>
+                <div id="gesture-camera-status" class="gesture-camera-status">Cámara apagada</div>
+              </div>
+              <button type="button" id="gesture-toggle" class="gesture-toggle-button">
+                Activar control por gestos
+              </button>
+            </section>
+
+            <div class="gesture-side">
+              <section class="panel">
+                <div class="panel-head"><h3>Los gestos</h3></div>
+                <ul class="gesture-legend">
+                  <li><span class="gesture-icon"><svg><use href="#i-pointer"/></svg></span>
+                    <span><strong>Mano derecha</strong> — el nudillo del índice mueve el cursor.</span></li>
+                  <li><span class="gesture-icon"><svg><use href="#i-pinch"/></svg></span>
+                    <span><strong>Pellizco</strong> (pulgar + índice) — clic; mantenerlo arrastra.</span></li>
+                  <li><span class="gesture-icon"><svg><use href="#i-fist"/></svg></span>
+                    <span><strong>Izquierda en puño</strong> — moverla arriba/abajo hace scroll.</span></li>
+                </ul>
+              </section>
+
+              <section class="panel">
+                <div class="panel-head"><h3>Desde el celular</h3></div>
+                <div class="gesture-status-card" id="gesture-status-card">
+                  <span class="gesture-dot" id="gesture-dot"></span>
+                  <div class="gesture-status-text">
+                    <strong id="gesture-status-title">Sin celular conectado</strong>
+                    <small id="gesture-status-detail">Abrí la PWA en tu teléfono para usarlo</small>
+                  </div>
+                  <span class="badge hidden" id="gesture-events"></span>
+                </div>
+                <ol class="steps">
+                  <li>Celular en la <strong>misma WiFi</strong> que esta PC.</li>
+                  <li>Abrí <code id="gesture-mobile-url">…</code> en el teléfono.</li>
+                  <li>Aceptá el aviso de certificado (es el tuyo, autofirmado).</li>
+                  <li>Pestaña <strong>Gestos</strong> → "Activar control por gestos".</li>
+                </ol>
+              </section>
             </div>
           </div>
+        </div>
 
-          <div class="home-widget">
-            <div class="widget-header">
-              <h2>Actividad reciente</h2>
-            </div>
-            <div id="home-activity-list" class="card-list compact"></div>
+        <!-- ========== HERRAMIENTAS ========== -->
+        <div id="view-tools" class="view">
+          <div class="view-header">
+            <h2>Herramientas</h2>
+            <button id="refresh-tools" class="link-button">↻ Actualizar</button>
           </div>
+          <p class="view-hint">Todo lo que ATLAS sabe hacer. La IA elige cuál usar según lo que le pidas.</p>
+          <div id="tool-list" class="card-list"></div>
+        </div>
 
-          <div class="home-widget">
-            <div class="widget-header">
-              <h2>Dispositivos</h2>
-            </div>
-            <div id="home-device-list" class="card-list compact"></div>
+        <!-- ========== ACTIVIDAD ========== -->
+        <div id="view-activity" class="view">
+          <div class="view-header">
+            <h2>Actividad</h2>
+            <button id="refresh-activity" class="link-button">↻ Actualizar</button>
           </div>
+          <div id="activity-list" class="card-list"></div>
         </div>
-      </div>
 
-      <!-- Chat -->
-      <div id="view-chat" class="view">
-        <div class="view-header"><h2>Chat</h2></div>
-        <div id="chat-log" class="chat-log"></div>
-        <form id="chat-form" class="chat-input-row">
-          <input id="chat-input" type="text" placeholder="Escribile a ATLAS…" autocomplete="off" />
-          <button type="submit">Enviar</button>
-        </form>
-      </div>
-
-      <!-- Dispositivos -->
-      <div id="view-devices" class="view">
-        <div class="view-header">
-          <h2>Dispositivos</h2>
-          <button id="refresh-devices" class="link-button">↻ Actualizar</button>
+        <!-- ========== NOTIFICACIONES ========== -->
+        <div id="view-notifications" class="view">
+          <div class="view-header">
+            <h2>Notificaciones</h2>
+            <button id="refresh-notifications" class="link-button">↻ Actualizar</button>
+          </div>
+          <div id="notification-list" class="card-list"></div>
         </div>
-        <div id="device-list" class="card-list"></div>
-      </div>
 
-      <!-- Automatizaciones -->
-      <div id="view-automations" class="view">
-        <div class="view-header">
-          <h2>Rutinas</h2>
-          <button id="refresh-automations" class="link-button">↻ Actualizar</button>
+        <!-- ========== CONFIGURACIÓN ========== -->
+        <div id="view-settings" class="view">
+          <div class="view-header"><h2>Configuración</h2></div>
+          <div id="settings-body" class="card-list"></div>
         </div>
-        <div id="automation-list" class="card-list"></div>
-      </div>
 
-      <!-- Notificaciones -->
-      <div id="view-notifications" class="view">
-        <div class="view-header">
-          <h2>Notificaciones</h2>
-          <button id="refresh-notifications" class="link-button">↻ Actualizar</button>
-        </div>
-        <div id="notification-list" class="card-list"></div>
-      </div>
+      </main>
 
-      <!-- Memoria -->
-      <div id="view-memory" class="view">
-        <div class="view-header">
-          <h2>Memoria</h2>
-          <button id="refresh-memory" class="link-button">↻ Actualizar</button>
+      <!-- Barra inferior: visualizador de voz a lo ancho -->
+      <footer class="listen-bar">
+        <canvas id="listen-wave" class="listen-wave" width="1400" height="56"></canvas>
+        <span id="listen-label" class="listen-label">ATLAS en espera</span>
+        <div class="listen-actions">
+          <button type="button" id="listen-wake" class="listen-secondary"
+                  title="Escucha continua: activar para hablarle sin tocar nada">
+            <svg><use href="#i-ear"/></svg>
+          </button>
+          <button type="button" id="listen-shazam" class="listen-secondary"
+                  title="Reconocer la canción que está sonando">
+            <svg><use href="#i-music"/></svg>
+          </button>
+          <button type="button" id="listen-mic" class="listen-mic" title="Hablar con ATLAS">
+            <svg><use href="#i-mic"/></svg>
+          </button>
         </div>
-        <div id="memory-list" class="card-list"></div>
-      </div>
-
-      <!-- Actividad (AuditLog completo) -->
-      <div id="view-activity" class="view">
-        <div class="view-header">
-          <h2>Actividad</h2>
-          <button id="refresh-activity" class="link-button">↻ Actualizar</button>
-        </div>
-        <div id="activity-list" class="card-list"></div>
-      </div>
-    </main>
+      </footer>
+    </div>
   </section>
 
   <!-- Diálogo de confirmación (acciones de riesgo medio/alto) -->
@@ -162,6 +483,7 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- type="module": app.js importa el motor de wake word compartido -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>

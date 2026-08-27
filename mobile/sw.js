@@ -1,7 +1,7 @@
 // Service worker mínimo: solo lo necesario para que el navegador considere
 // la página instalable como PWA. No cachea la API (los datos de ATLAS
 // siempre deben ser en vivo), solo permite que el ícono/manifest se registren.
-const CACHE_NAME = "atlas-shell-v9"; // subir la versión invalida la caché vieja (ej. tras cambios en app.js)
+const CACHE_NAME = "atlas-shell-v12"; // subir la versión invalida la caché vieja (ej. tras cambios en app.js)
 const SHELL_FILES = ["./index.html", "./styles.css", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
