@@ -68,14 +68,18 @@ Claude real. Ver `docs/architecture.md` para el detalle fase por fase y
 - `GET /api/v1/devices`, `GET/POST /api/v1/rooms`: directo, sin pasar por
   la IA.
 
-**Wake word "Atlas" (agregado sobre la Fase 4, cliente de escritorio):**
+**Wake word "Ali" (agregado sobre la Fase 4, cliente de escritorio):**
+- Se llamaba "Atlas"; se probó "Vision" pero Whisper (forzado a español)
+  alucinaba palabras random tratando de encajar su pronunciación inglesa
+  en fonética española. "Ali" es corta y sin sonidos ambiguos, transcribe
+  mucho más consistente.
 - Escucha continua activada automáticamente al abrir el cliente (pedido
   explícito del usuario — no queda apagada por defecto como el resto de las
   capturas de cámara/audio del proyecto). Botón "👂 Escucha" para
   apagarla/prenderla manualmente.
 - Reutiliza Whisper (sin motor de wake-word dedicado): buffer de audio
   deslizante + filtro de energía + `/api/v1/voice/transcribe` con idioma
-  forzado a español. Solo reacciona si "Atlas" aparece entre las primeras
+  forzado a español. Solo reacciona si "Ali" aparece entre las primeras
   palabras transcritas (evita disparos por conversaciones de fondo).
 - `desktop/atlas_desktop/wake_word.py`, 55 tests backend + 15 desktop.
 
@@ -133,6 +137,345 @@ Claude real. Ver `docs/architecture.md` para el detalle fase por fase y
 - Identidad visual propia (fondo oscuro, acento cian), consistente entre
   `mobile/` y `dashboard/`, sin parecerse a Iron Man/Marvel.
 - 85 tests backend.
+
+**Fase 10 (Integraciones externas — Wikipedia, clima, YouTube, Spotify):**
+- 4 tools nuevas, mismo patrón que el resto (`app/tools/`, JSON Schema +
+  `RiskLevel.READ_ONLY` — solo leen, nunca actúan): `search_wikipedia`,
+  `get_weather`, `search_youtube`, `search_spotify`.
+- Wikipedia (`app/integrations/wikipedia.py`) y clima
+  (`app/integrations/weather.py`, vía Open-Meteo) no necesitan API key,
+  andan siempre. YouTube y Spotify sí — ver `.env.example` para cómo
+  conseguirlas gratis; si falta la key, la tool devuelve un error
+  explicativo en vez de romper el resto de ATLAS.
+- Spotify usa Client Credentials Flow (solo búsqueda pública, sin login de
+  usuario) — no controla reproducción; eso requeriría OAuth de tu cuenta +
+  Spotify Premium + un dispositivo activo, fuera de alcance de esta fase.
+- **Spotify — bloqueado por falta de Premium**: código completo y probado
+  (`search_spotify`, credenciales ya cargadas en `.env`), pero Spotify
+  devuelve `403 Active premium subscription required for the owner of the
+  app` — política nueva (2025): incluso Client Credentials sin login de
+  usuario exige que la cuenta dueña de la app tenga Premium activo cuando
+  la app está en Development Mode. Confirmado en vivo con `curl` directo a
+  la API, no es un bug del código. Se destraba solo (sin tocar nada) el
+  día que la cuenta tenga Premium.
+- YouTube confirmado funcionando en vivo (búsqueda real, 5 resultados).
+- **Shazam (reconocer canciones sonando) — implementado vía AudD**, no
+  `shazamio`: esa librería depende de `shazamio-core` (Rust), que no tiene
+  wheel prebuilt para Python 3.13 en Windows y falló al compilar acá
+  (`link.exe` del toolchain de Rust no encuentra las libs de MSVC). AudD
+  es una API REST simple (sin nada que compilar) — necesita
+  `AUDD_API_TOKEN` (cuenta gratis en audd.io, sin tarjeta).
+  - No es una tool de la IA: es un endpoint de subida directa,
+    `POST /api/v1/music/identify` (`app/api/v1/music.py`), mismo criterio
+    que `/voice/transcribe` y `/vision/analyze` — el usuario ya decidió
+    explícitamente grabar el audio, no tiene sentido que pase por tool
+    calling.
+  - Botón "🎵 Shazam"/"🎵" agregado tanto al cliente de escritorio
+    (`desktop/atlas_desktop/main.py`, graba 6s con `sounddevice`) como a la
+    PWA móvil (`mobile/app.js`, graba 6s con `MediaRecorder`) — cualquiera
+    de los dos clientes puede usarlo, no solo uno.
+  - Pendiente de key propia (mismo criterio que YouTube/Spotify: sin
+    `AUDD_API_TOKEN` configurada, el endpoint devuelve 400 con las
+    instrucciones para conseguirla, en vez de romper en silencio).
+- 15 tests backend nuevos (mockeando `requests`, sin pegarle a las APIs
+  reales ni depender de tener las keys configuradas).
+
+**Fase 11 (Recordatorios + rediseño del dashboard):**
+- **Recordatorios** (`app/reminders/`): modelo + CRUD + API
+  (`/api/v1/reminders`) y dos tools (`create_reminder`, `list_reminders`)
+  para pedirlos por voz. Son distintos de las rutinas del Automation
+  Engine a propósito: una rutina *ejecuta acciones*, un recordatorio solo
+  *avisa*.
+- **Métricas nuevas en `/api/v1/system/status`**: velocidad de red real
+  (derivada entre dos muestreos de `psutil.net_io_counters`), uptime, y
+  temperatura de CPU. La temperatura llega como `null` en equipos que no
+  exponen el sensor (`psutil.sensors_temperatures` es solo Linux, y el
+  fallback por WMI depende de que la placa exponga
+  `MSAcpi_ThermalZoneTemperature` — la PC de desarrollo no lo hace); el
+  dashboard oculta esa tarjeta en vez de inventar un número. El resultado
+  de la detección se cachea: sin eso se abría una conexión WMI en cada
+  sondeo, cada 4 segundos.
+- **`ATLAS_USER_NAME`** en `.env` (vacío por defecto) para el saludo del
+  dashboard, expuesto por `GET /api/v1/settings/profile`. Sin nombre
+  configurado el saludo es genérico según la hora ("Buenos días").
+- **Dashboard rediseñado** sobre un mockup del usuario: grilla de paneles
+  (hero con orbe, Sistema con anillos + sparklines, Recordatorios,
+  Dispositivos con filtro Todos/Salas/Tipos e interruptores,
+  Acciones rápidas, Automatizaciones, Actividad como timeline, Estado de
+  la casa) más una barra inferior de escucha a lo ancho. Vistas nuevas de
+  Herramientas y Configuración.
+- Se mantiene la regla de la Fase 9: **todo sale de datos reales de la
+  API**. Los visualizadores de audio (orbe, ondas del hero, barra
+  inferior) dibujan muestras reales del `AnalyserNode` mientras hay audio,
+  y una línea plana en reposo — no hay animación decorativa fingiendo
+  actividad. Las sparklines arrancan vacías y se llenan con cada sondeo.
+- 20 tests backend nuevos. **`conftest.py` ahora fuerza a vacías las
+  credenciales de integraciones**: sin eso los tests leían las reales de
+  `.env` y salían a internet de verdad (detectado en vivo — un test le
+  pegó a la API de AudD).
+
+**Fase 12 (Smart home real vía Tuya):**
+- `SMART_HOME_PROVIDER=tuya` (`app/smart_home/tuya_provider.py`), tercer
+  provider junto a `mock` y `home_assistant`. Cubre las apps de marca
+  blanca construidas sobre Tuya — **Mercury Smart** (la del usuario; su
+  propio soporte recomienda la app de Tuya como alternativa), Smart Life,
+  Tuya Smart, Geeni. Los mismos dispositivos vinculados a Alexa quedan
+  cubiertos: Alexa es el control, no el dueño del aparato.
+- **Por qué no se integró Alexa directamente**: Amazon no publica ninguna
+  API para controlar dispositivos a través de Alexa — solo la Smart Home
+  Skill API, que es para *fabricantes* que quieren aparecer en Alexa. Las
+  librerías tipo `AlexaPy` son ingeniería inversa no oficial que se rompe
+  sin aviso. Ir por Tuya alcanza el mismo hardware por la vía soportada.
+- Usa el SDK oficial `tuya-connector-python` y no `requests` directo como
+  `home_assistant_provider.py`: la firma HMAC-SHA256 de Tuya combina
+  método, hash del cuerpo, headers, token, timestamp y nonce — fácil de
+  implementar mal y difícil de depurar. El import es diferido, así que
+  quien use mock/HA no necesita el SDK.
+- Detalles que el provider resuelve y conviene no perder:
+  - Tuya responde **HTTP 200 con `success: false`** en los errores — mirar
+    el código de estado no alcanza.
+  - El código del interruptor **varía por modelo** (`switch_led` en una
+    bombilla, `switch_1` en una zapatilla): se descubre en vivo vía
+    `/functions` en vez de asumir uno.
+  - Las temperaturas llegan en décimas de grado como enteros (`215` =
+    21.5 °C) y se normalizan a `capabilities["temperature"]`, el nombre
+    que ya usa el resto de ATLAS.
+  - El brillo se traduce entre el porcentaje de ATLAS y el rango 10–1000
+    de Tuya.
+  - **Las cerraduras se rechazan explícitamente**: abrirlas por API exige
+    un flujo de contraseña temporal que no está implementado, así que se
+    devuelve un error claro en vez de fingir que funcionó.
+- `scripts/tuya_setup.py`: valida las credenciales, **encuentra solo el
+  UID** de la cuenta vinculada (el dato más escondido de la consola de
+  Tuya) y lista los dispositivos que ATLAS va a ver. Si falla, sugiere el
+  centro de datos correcto, que es la causa más común.
+- 16 tests, mockeando el SDK entero — no tocan la nube ni piden
+  credenciales.
+
+**Fase 13 (Gestos en el dashboard + set de iconos):**
+- **El dashboard ahora captura gestos con la webcam de la propia PC**, no
+  solo recibe los del celular. La primera versión de esta vista era solo un
+  panel de estado, asumiendo que la cámara siempre estaría en el teléfono —
+  pero eso fue circunstancial (la PC no tenía webcam el día que se probó).
+  Se portó la detección de `mobile/app.js`: MediaPipe Tasks Vision en el
+  navegador, mismos umbrales calibrados en vivo (`PINCH_RATIO`,
+  `CURLED_RATIO`), y por el WebSocket solo viajan coordenadas — nunca video.
+- **La cámara NO se apaga al cambiar de vista** (a diferencia de la PWA):
+  el objetivo es manejar el mouse mientras mirás cualquier pantalla, así
+  que apagarla al salir dejaba la función inservible. Solo la apaga el
+  botón. Para que nunca quede corriendo en silencio, mientras captura se
+  muestra un indicador rojo fijo en la barra superior, desde cualquier vista.
+- `GET /api/v1/gestures/status` + `app/gestures/session.py`: el WebSocket no
+  dejaba ningún rastro consultable — no había forma de saber si un celular
+  estaba controlando el mouse salvo mirar si el cursor se movía. Ahora el
+  dashboard muestra ambas fuentes (webcam local y teléfono) con datos reales.
+- `GET /api/v1/settings/profile` devuelve también la **IP local**: el
+  dashboard se abre en `127.0.0.1` y no puede saberla por su cuenta, pero la
+  necesita para decir qué URL abrir en el celular.
+- **Set de iconos SVG propio** reemplazando todos los emojis y glifos
+  Unicode del dashboard. Dos motivos: los emojis rompían la identidad
+  monocroma (pedido del usuario), y los glifos dependían de la fuente
+  instalada — `⏻` y `◔` ya habían salido como cuadraditos vacíos en Segoe
+  UI. Ahora el trazo hereda `currentColor` y se colorea por contexto.
+- 9 tests nuevos (tracker de sesión + endpoints).
+
+**Bug: en el celular no hablaba nunca** (clientes web)
+- En móvil el permiso de autoplay **caduca**: nace del toque en "Enviar",
+  pero el audio llega varios segundos después (respuesta de Claude +
+  síntesis) y para entonces ya no vale. En escritorio casi no se nota; en
+  celular no sonaba prácticamente nunca.
+- Arreglado con el patrón estándar: **no se crea un `new Audio()` por
+  respuesta**. Se reutiliza siempre el mismo elemento, desbloqueado en el
+  primer gesto del usuario reproduciendo un WAV silencioso. Una vez
+  desbloqueado se le puede cambiar el `src` sin gesto nuevo.
+- En el dashboard esto además era obligatorio, no una mejora:
+  `createMediaElementSource()` **solo puede llamarse una vez por elemento**,
+  así que el grafo de audio del visualizador también se reutiliza.
+- El elemento va **dentro del DOM**: algunos navegadores móviles solo
+  reproducen de forma confiable elementos que están en el documento.
+- Verificado en Chromium móvil simulado con
+  `--autoplay-policy=user-gesture-required`.
+
+**Bug: "a veces responde hablando y a veces no"** (los tres clientes)
+- La causa **no era aleatoria, dependía de qué se pedía.** `speak()` se
+  llamaba en un solo lugar: la respuesta directa del chat. Todo lo que pasa
+  por el diálogo de confirmación (abrir/cerrar una app, mirar la pantalla,
+  tocar un dispositivo — o sea las tools MEDIUM/HIGH_RISK) devolvía su
+  respuesta final por otro camino, `resolveConfirmation`, que la mostraba
+  pero nunca la hablaba. Corregido en dashboard, PWA y escritorio.
+- **Segundo bug encontrado buscando el primero**: `playWithVisualizer`
+  creaba un `AudioContext` sin reanudarlo. Un contexto nuevo arranca
+  **suspendido** si no hubo un gesto del usuario reciente, y como el audio
+  pasa *a través* del contexto para llegar a los parlantes, quedaba en
+  silencio — sin que `audio.play()` fallara, así que no había ningún error
+  visible. Ahora se reanuda, y si el navegador no lo permite se reproduce
+  sin visualizador: es preferible oír a ATLAS sin la animación que tener la
+  animación en silencio.
+- Nota de método: el segundo bug **no se pudo reproducir** en Chromium bajo
+  Playwright, que permite autoplay aun forzando la política. Se corrigió
+  igual por ser incorrecto, pero el que explica el síntoma reportado es el
+  primero, que sí es determinista y quedó verificado.
+
+**Fase 19 (Búsqueda web — el hueco más grande que quedaba):**
+- Hasta acá ATLAS no podía responder **nada actual**: noticias, precios,
+  horarios, si algo pasó ayer. Wikipedia solo cubre temas enciclopédicos y
+  el conocimiento del modelo se corta en su fecha de entrenamiento.
+- Dos proveedores (`app/integrations/web_search.py`), mismo patrón que
+  smart home y voz:
+  - **`duckduckgo`** (por defecto): sin API key ni registro, anda al
+    instante. Vía no oficial (`ddgs`): puede limitar por frecuencia.
+  - **`tavily`**: además de enlaces devuelve una **respuesta ya
+    sintetizada**, que le ahorra al modelo deducirla. 1.000 consultas/mes
+    gratis con cuenta.
+  - Brave quedó afuera: retiró su plan gratuito a fines de 2025.
+- **La descripción de la tool es la parte que más importa.** Es la única
+  señal que tiene el modelo para decidir cuándo buscar, cuándo ir a
+  Wikipedia y cuándo responder de memoria. Está redactada alrededor de
+  "¿depende de la fecha?" y hay un test que lo verifica — es fácil
+  romperlo sin darse cuenta al editar el texto.
+- Verificado en vivo: ante "noticias recientes de IA" eligió `search_web` y
+  citó la fuente; ante "clima en Bogotá" eligió `get_weather`, que es la
+  herramienta correcta. La selección entre tools funciona.
+- 13 tests, mockeando la red.
+
+**Fase 18 (Voz neuronal):**
+- `TTS_PROVIDER=edge` (`app/voice/edge_provider.py`): las voces neuronales
+  del navegador Edge, gratis y **sin API key**. Reemplazan a SAPI, que
+  sonaba claramente sintética. Voz elegida tras comparar muestras de siete
+  acentos: `es-MX-JorgeNeural` (configurable con `EDGE_TTS_VOICE`, más
+  `EDGE_TTS_RATE` y `EDGE_TTS_PITCH`).
+- **SAPI no se borró, y no es por nostalgia.** Edge tiene tres costos que
+  SAPI no tenía: necesita internet, el texto sale de la máquina hacia
+  servidores de Microsoft, y es una vía no oficial que podría dejar de
+  funcionar sin aviso. `TTS_PROVIDER=sapi` sigue siendo la alternativa
+  offline.
+- Edge devuelve **MP3** pero el resto del proyecto habla WAV — el cliente
+  de escritorio reproduce con `soundfile`. Se convierte dentro del
+  proveedor para que ningún cliente se entere del cambio; alcanza con
+  `soundfile` (libsndfile 1.2 lee MP3), sin ffmpeg ni dependencias extra.
+- 11 tests, mockeando la red.
+
+**Fase 17 (Wake word en todos los clientes + Markdown como texto enriquecido):**
+- **`shared/`, primer código compartido entre los clientes web.** Hasta acá
+  `dashboard/` y `mobile/` duplicaban todo, y eso ya había costado: al
+  renombrar la palabra de activación hubo que tocarla en varios lugares.
+  Ahora `shared/wake-word.js`, `shared/wake-processor.js` y
+  `shared/markdown.js` viven una sola vez, y ambos `serve.py` los sirven en
+  `/shared/` (con validación de ruta: escuchan en la red).
+- **Wake word en el navegador** (`shared/wake-word.js`), port de
+  `desktop/atlas_desktop/wake_word.py` con la misma estrategia: buffer
+  deslizante, filtro de energía local y Whisper. Detalles que obligó el
+  navegador:
+  - **AudioWorklet y no MediaRecorder**: los fragmentos WebM no son
+    decodificables por separado (solo el primero trae cabecera), así que no
+    sirven para una ventana deslizante. Se captura PCM crudo y se arma el
+    WAV a mano.
+  - Corre en el hilo de audio, no en el principal: queda escuchando de
+    forma continua y competiría con el renderizado de la interfaz.
+  - Se **pausa mientras ATLAS habla** y se reanuda al terminar; sin eso su
+    propia voz por los parlantes volvía a dispararlo.
+  - Apagado por defecto: mantiene el micrófono abierto, así que tiene que
+    ser una decisión explícita del usuario.
+- **`ATLAS_WAKE_WORD` en `.env`**: la palabra la define el backend y la leen
+  los tres clientes desde `/api/v1/settings/profile`. Antes vivía escrita en
+  el código del escritorio, y agregarla a la web habría creado tres lugares
+  donde desincronizarse.
+- **Markdown ya no se lee ni se ve en crudo.** Dos mitades:
+  - `backend/app/voice/markdown_speech.py`: limpia el Markdown **antes del
+    TTS**, así el motor deja de leer "asterisco asterisco importante" y de
+    dictar las URLs carácter por carácter. Está en el backend porque los
+    tres clientes usan el mismo `/api/v1/voice/speak`.
+  - `shared/markdown.js`: lo renderiza como texto enriquecido en las
+    burbujas del chat. **Escapa el HTML primero, siempre** — el texto viene
+    de un modelo que repite contenido de páginas web, memorias y
+    dispositivos. Los enlaces se limitan a `http(s)`, así que un
+    `[texto](javascript:…)` no se vuelve ejecutable.
+- 20 tests nuevos del limpiador de Markdown.
+
+**Fase 16 (Dashboard en la red local + Shazam en el dashboard):**
+- `dashboard/serve.py` pasa a escuchar en `0.0.0.0` para poder entrar desde
+  otro dispositivo. **HTTPS deja de ser opcional al hacerlo**: desde
+  127.0.0.1 el navegador lo trataba como contexto seguro por sí solo, pero
+  desde cualquier otra IP `getUserMedia` queda bloqueado sin certificado —
+  se caerían el orbe de voz y el control por gestos.
+- **Botón de Shazam en el dashboard**: estaba en el cliente de escritorio y
+  en la PWA, pero faltaba acá. Pedírselo por chat nunca iba a funcionar y
+  la respuesta del modelo era correcta: el reconocimiento de canciones **no
+  es una tool de la IA** a propósito (subida directa, igual que
+  `/voice/transcribe` y `/vision/analyze`), así que Claude no tiene acceso
+  al micrófono.
+- **Bug real encontrado al probarlo**: AudD usa `error_code 300` cuando no
+  puede generar la huella del audio (silencio, clip corto, ruido). Se
+  propagaba como excepción → 500 sin manejar → y como FastAPI no le agrega
+  cabeceras CORS a un 500, **el navegador lo reportaba como error de CORS**,
+  escondiendo el motivo real. Ahora ese código se trata como "no reconocí
+  nada" (200 con `found: false`) y el resto de los errores de AudD devuelven
+  502 (`AuddError`), que es lo honesto: falla el servicio externo, no ATLAS.
+- Otra trampa del entorno: reiniciar el backend a mano deja procesos
+  huérfanos: uvicorn con `--reload` es padre + hijo, y en Windows dos
+  sockets pueden quedar ligados al mismo puerto — un backend viejo seguía
+  respondiendo con código sin actualizar mientras el nuevo arrancaba en
+  silencio. Al depurar, verificar **qué PID posee el puerto**, no solo que
+  el puerto responda.
+
+**Fase 15 (Paridad del cliente de escritorio con el dashboard):**
+- La Fase 14 solo le aplicó *la pintura* del dashboard (paleta, tipografía,
+  anillos, orbe) conservando la estructura de la Fase 4: una ventana de chat.
+  Eso **no era un límite de Tkinter, fue un error de alcance** — CustomTkinter
+  hace perfectamente barra lateral navegable, tarjetas e interruptores.
+- Ahora tiene las **mismas 11 secciones** que el dashboard (Inicio,
+  Conversación, Dispositivos, Automatizaciones, Recordatorios, Memoria,
+  Gestos, Herramientas, Actividad, Notificaciones, Configuración), el hero
+  con saludo por franja horaria y accesos rápidos, los mismos paneles de la
+  home y la barra de escucha al pie.
+- `atlas_desktop/views.py`: construcción y refresco de cada vista, separado
+  de `main.py` (ventana, navegación, audio, sondeos) — juntos daban un
+  archivo imposible de navegar. `api_client.py` gana los mismos endpoints
+  que consume `dashboard/app.js`, para que ambas interfaces no se
+  contradigan.
+- **Lo que sigue difiriendo, y por qué**: sin SVG (los iconos del dashboard
+  se sustituyen por barras de color por tipo de dispositivo); sin `rgba` ni
+  degradados; sin `flex-wrap` (los chips van en grilla fija); animación por
+  `after()` a ~25 fps; y el control por gestos necesita MediaPipe, que corre
+  en un navegador — la vista de Gestos muestra el estado del receptor y
+  dónde activarlo, no la captura.
+- Tres trampas de CustomTkinter encontradas al probarlo en vivo:
+  - `CTkFrame` ya define `_draw(no_color_updates=...)`; un widget propio que
+    llame así a su método de dibujo lo pisa y revienta al construirse.
+  - Un `CTkFrame` **sin hijos** conserva su alto por defecto (200 px): la
+    barrita de color de cada fila estiraba la lista entera.
+  - Un `CTkCanvas` no puede ser transparente; su `bg` tiene que coincidir
+    exactamente con el del contenedor o se ve un rectángulo de otro tono.
+
+**Fase 14 (Rediseño del cliente de escritorio):**
+- `desktop/` pasa de la ventana funcional de la Fase 4 a la misma identidad
+  visual del dashboard. **No puede quedar idéntica**: Tkinter no tiene CSS
+  ni SVG, no admite canales alfa y sus Canvas no pueden ser transparentes.
+  Lo que sí comparte: paleta, tipografía, jerarquía y estructura.
+- `atlas_desktop/theme.py`: los mismos valores que `dashboard/styles.css`,
+  como constantes de Python. Tkinter no tiene variables CSS y cada widget
+  recibe sus colores a mano — tenerlos en un solo lugar evita que los dos
+  clientes se vayan desincronizando.
+- `atlas_desktop/widgets.py`: lo que en el dashboard resuelve el CSS acá
+  hay que dibujarlo sobre Canvas — `MetricRing` (el `conic-gradient` de los
+  anillos de CPU/RAM/Disco), `VoiceOrb` y `LevelBar`. Incluye un helper
+  `_blend()` porque los `rgba()` translúcidos del dashboard hay que
+  precalcularlos: Tkinter no tiene alfa.
+- **Los visualizadores se mueven con audio real**, igual que en el
+  dashboard: la amplitud sale del RMS de los bloques del micrófono
+  (`_audio_level`), no de un temporizador. En reposo el orbe queda quieto y
+  la barra muestra una línea plana, que es la verdad. Para que la voz de
+  ATLAS también alimente el visualizador, `_play_speech` reproduce por
+  bloques en vez de con `sd.play()` de una sola vez.
+- `record_command_until_silence()` acepta un `on_level` opcional, para que
+  el orbe también reaccione durante la captura del wake word.
+- Dos bugs propios del entorno, encontrados al probarlo en vivo:
+  - `CTkFrame` ya define un método `_draw(no_color_updates=...)` interno;
+    llamar así al método de dibujo de un widget propio lo pisa y revienta
+    al construirlo. Renombrado a `_render()`.
+  - Un `CTkCanvas` no puede tener fondo transparente: si su `bg` no coincide
+    exactamente con el del contenedor, se ve un rectángulo más claro
+    alrededor del dibujo.
 
 ## Estructura
 
@@ -232,6 +575,8 @@ python run.py
 python scripts/voice_chat_demo.py
 ```
 Enter para grabar, Enter de nuevo para terminar, y ATLAS te responde por voz.
+Para el modo wake word del cliente de escritorio, la palabra de activación
+es "Ali" (antes "Atlas", luego "Vision").
 La primera vez que uses Whisper se descarga el modelo (~150 MB para "base").
 
 ## Cómo probar el cliente de escritorio
