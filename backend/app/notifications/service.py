@@ -27,8 +27,11 @@ def mark_read(db: Session, notification_id: int) -> bool:
 
 def _format_message(event: Event) -> str:
     payload = event.payload
-    if event.type == EventType.NOTIFICATION_CREATED and "routine" in payload:
-        return f"Rutina '{payload['routine']}': {payload.get('reason', 'requiere tu atención.')}"
+    if event.type == EventType.NOTIFICATION_CREATED:
+        if "reminder" in payload:
+            return f"Recordatorio: {payload['reminder']}"
+        if "routine" in payload:
+            return f"Rutina '{payload['routine']}': {payload.get('reason', 'requiere tu atención.')}"
     return str(payload)
 
 

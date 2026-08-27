@@ -13,6 +13,7 @@ from app.core.database import init_db
 from app.core.logging import configure_logging
 from app.events.bus import event_bus, register_default_subscribers
 from app.notifications.service import register_notification_subscriber
+from app.reminders.scheduler import ReminderScheduler
 from app.tools.registry import tool_registry
 
 
@@ -27,10 +28,15 @@ async def lifespan(app: FastAPI):
 
     scheduler = AutomationScheduler(tool_registry, event_bus)
     scheduler.start()
+    # Sin esto los recordatorios se podían crear y listar, pero nunca
+    # avisaban al vencer — y un recordatorio que no interrumpe no sirve.
+    reminders = ReminderScheduler(event_bus)
+    reminders.start()
     try:
         yield
     finally:
         await scheduler.stop()
+        await reminders.stop()
 
 
 def create_app() -> FastAPI:

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_stt_provider, get_tts_provider
 from app.voice.base import SpeechToTextProvider, TextToSpeechProvider
+from app.voice.markdown_speech import markdown_to_speech
 
 router = APIRouter(prefix="/voice", tags=["voice"])
 
@@ -37,5 +38,11 @@ async def transcribe(
 
 @router.post("/speak")
 def speak(body: SpeakRequest, tts: TextToSpeechProvider = Depends(get_tts_provider)) -> Response:
-    audio_bytes = tts.synthesize(body.text)
+    # Claude responde en Markdown y los motores de voz leen la marcación tal
+    # cual ("asterisco asterisco importante"), además de dictar las URLs
+    # carácter por carácter. Se limpia acá y no en cada cliente porque los
+    # tres (escritorio, dashboard, PWA) pasan por este mismo endpoint.
+    # El texto que se muestra en pantalla no se toca: sigue en Markdown para
+    # que cada cliente lo renderice como texto enriquecido.
+    audio_bytes = tts.synthesize(markdown_to_speech(body.text))
     return Response(content=audio_bytes, media_type="audio/wav")

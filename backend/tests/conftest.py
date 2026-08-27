@@ -15,6 +15,18 @@ os.environ.setdefault("VISION_PROVIDER", "mock")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("ATLAS_PASSWORD", "test-password")
 
+# Credenciales de integraciones externas forzadas a vacío: sin esto, los
+# tests leen las reales de backend/.env y salen a internet de verdad (pasó:
+# test_identify_endpoint_reports_missing_token le pegó a la API de AudD).
+# Las variables de entorno tienen prioridad sobre el archivo .env en
+# pydantic-settings, así que esto las neutraliza.
+os.environ.setdefault("AUDD_API_TOKEN", "")
+os.environ.setdefault("YOUTUBE_API_KEY", "")
+os.environ.setdefault("SPOTIFY_CLIENT_ID", "")
+os.environ.setdefault("SPOTIFY_CLIENT_SECRET", "")
+os.environ.setdefault("ATLAS_USER_NAME", "")
+os.environ.setdefault("TAVILY_API_KEY", "")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -40,6 +52,7 @@ def db_session():
     from app.memory import models as _memory_models  # noqa: F401
     from app.notifications import models as _notifications_models  # noqa: F401
     from app.personality import models as _personality_models  # noqa: F401
+    from app.reminders import models as _reminders_models  # noqa: F401
     from app.security import audit as _audit_models  # noqa: F401
     from app.smart_home import models as _smart_home_models  # noqa: F401
 

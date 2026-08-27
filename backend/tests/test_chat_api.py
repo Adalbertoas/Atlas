@@ -102,6 +102,7 @@ def test_tools_endpoint_lists_all_base_tools(client, auth_headers):
     assert names == {
         "get_system_info",
         "open_application",
+        "open_url",
         "close_application",
         "list_processes",
         "open_file",
@@ -116,6 +117,13 @@ def test_tools_endpoint_lists_all_base_tools(client, auth_headers):
         "control_room",
         "run_routine",
         "analyze_screenshot",
+        "search_wikipedia",
+        "get_weather",
+        "search_youtube",
+        "search_spotify",
+        "create_reminder",
+        "list_reminders",
+        "search_web",
     }
 
 

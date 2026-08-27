@@ -5,22 +5,36 @@ pydantic-settings==2.7.0
 SQLAlchemy==2.0.36
 anthropic==0.42.0
 psutil==6.1.1
+# Temperatura de CPU en Windows (psutil.sensors_temperatures es solo Linux).
+# Opcional: si no está instalado, o la placa no expone MSAcpi_ThermalZoneTemperature,
+# la métrica se reporta como null y el dashboard la oculta.
+WMI==1.5.1; sys_platform == "win32"
 python-dotenv==1.0.1
 python-multipart==0.0.32
 PyJWT==2.13.0
 Pillow==12.3.0
 PyAutoGUI==0.9.54
 cryptography==50.0.1
+# Smart home vía Tuya Cloud (Fase 12) — SDK oficial. La firma HMAC de Tuya
+# es error-prone de implementar a mano; ver app/smart_home/tuya_provider.py.
+tuya-connector-python==0.1.2
 
 # Voz (Fase 3)
 faster-whisper==1.2.1
 pyttsx3==2.99
+# Voces neuronales de Edge (TTS_PROVIDER=edge). Gratis y sin API key,
+# pero necesita internet y usa una vía no oficial de Microsoft — por eso
+# pyttsx3/SAPI se mantiene como alternativa offline.
+edge-tts==7.2.8
 
 # Script de demo de voz (backend/scripts/voice_chat_demo.py)
 sounddevice==0.5.6
 numpy==2.5.2
 soundfile==0.14.0
 requests==2.34.2
+# Búsqueda web sin API key (WEB_SEARCH_PROVIDER=duckduckgo). Vía no
+# oficial: puede limitar por frecuencia. Tavily es la alternativa con cuenta.
+ddgs==9.16.0
 
 # Testing
 pytest==8.3.4

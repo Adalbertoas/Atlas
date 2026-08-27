@@ -7,12 +7,28 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
 from app.gestures.mouse_controller import MouseController
-from app.security.auth import is_token_valid
+from app.gestures.session import gesture_session
+from app.security.auth import get_current_user, is_token_valid
 
 router = APIRouter(prefix="/gestures", tags=["gestures"])
+
+
+@router.get("/status")
+def status(_user: str = Depends(get_current_user)) -> dict:
+    """Estado en vivo del receptor de gestos, para el dashboard (Fase 13).
+
+    El dashboard corre en la PC controlada — la cámara está en el celular,
+    así que lo único que puede mostrar es si hay un celular conectado."""
+    state = gesture_session.snapshot()
+    return {
+        "connected": state.connected,
+        "connected_since": state.connected_since.isoformat() if state.connected_since else None,
+        "last_event_at": state.last_event_at.isoformat() if state.last_event_at else None,
+        "events_received": state.events_received,
+    }
 
 
 @router.websocket("/stream")
@@ -33,6 +49,7 @@ async def gestures_stream(websocket: WebSocket) -> None:
         return
 
     controller = MouseController()
+    gesture_session.connected()
     try:
         while True:
             raw = await websocket.receive_text()
@@ -46,9 +63,11 @@ async def gestures_stream(websocket: WebSocket) -> None:
                         y_norm=float(data["y"]),
                         pinching=bool(data.get("pinching", False)),
                     )
+                gesture_session.record_event()
             except (json.JSONDecodeError, KeyError, ValueError, TypeError):
                 continue  # frame inválido: se ignora, no se corta la conexión
     except WebSocketDisconnect:
         pass
     finally:
         controller.release()  # nunca dejar el clic apretado si la conexión se corta
+        gesture_session.disconnected()

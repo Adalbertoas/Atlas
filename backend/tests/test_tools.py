@@ -6,6 +6,7 @@ from app.tools.base import ToolContext
 from app.tools.computer.close_application import CloseApplicationTool
 from app.tools.computer.open_application import OpenApplicationTool
 from app.tools.computer.open_file import OpenFileTool
+from app.tools.computer.open_url import OpenUrlTool
 from app.tools.filesystem.list_files import ListFilesTool
 from app.tools.media.control_media import ControlMediaTool
 from app.tools.system.get_current_time import GetCurrentTimeTool
@@ -99,6 +100,25 @@ def test_open_file_opens_allowed_extension(db_session, tmp_path, monkeypatch):
     result = tool.execute({"path": str(target)}, ToolContext(db=db_session))
     assert result.success
     assert len(calls) == 1
+
+
+def test_open_url_opens_http_link(db_session, monkeypatch):
+    # Visto en vivo: pedirle a ATLAS "abrí <canción>" después de una
+    # búsqueda de YouTube terminaba en open_file, que trataba la URL como
+    # ruta de archivo local. open_url es la tool correcta para esto.
+    calls = []
+    monkeypatch.setattr("app.tools.computer.open_url.webbrowser.open", lambda url: calls.append(url) or True)
+
+    tool = OpenUrlTool()
+    result = tool.execute({"url": "https://www.youtube.com/watch?v=kPa7bsKwL-c"}, ToolContext(db=db_session))
+    assert result.success
+    assert calls == ["https://www.youtube.com/watch?v=kPa7bsKwL-c"]
+
+
+def test_open_url_rejects_non_http_scheme(db_session):
+    tool = OpenUrlTool()
+    result = tool.execute({"url": "file:///etc/passwd"}, ToolContext(db=db_session))
+    assert not result.success
 
 
 def test_control_media_rejects_unknown_action(db_session):

@@ -54,6 +54,14 @@ def get_stt_provider() -> SpeechToTextProvider:
 @lru_cache
 def get_tts_provider() -> TextToSpeechProvider:
     settings = get_settings()
+    if settings.tts_provider == "edge":
+        from app.voice.edge_provider import EdgeTTSProvider  # import perezoso: solo si se usa
+
+        return EdgeTTSProvider(
+            voice=settings.edge_tts_voice,
+            rate=settings.edge_tts_rate,
+            pitch=settings.edge_tts_pitch,
+        )
     if settings.tts_provider == "sapi":
         from app.voice.sapi_provider import WindowsSapiProvider  # import perezoso: pyttsx3 solo en Windows
 

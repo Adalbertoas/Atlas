@@ -20,6 +20,16 @@ def get_smart_home_provider() -> SmartHomeProvider:
 
         return HomeAssistantProvider(base_url=settings.smart_home_url, token=settings.smart_home_token)
 
+    if settings.smart_home_provider == "tuya":
+        from app.smart_home.tuya_provider import TuyaSmartHomeProvider
+
+        return TuyaSmartHomeProvider(
+            access_id=settings.tuya_access_id,
+            access_secret=settings.tuya_access_secret,
+            endpoint=settings.tuya_endpoint,
+            uid=settings.tuya_uid,
+        )
+
     from app.smart_home.mock_provider import MockSmartHomeProvider
 
     return MockSmartHomeProvider()
