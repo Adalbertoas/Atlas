@@ -1,16 +1,23 @@
-"""Escucha continua con palabra de activación "Atlas" (modo Wake Word).
+"""Escucha continua con palabra de activación "Ali" (modo Wake Word).
+
+Antes era "Atlas", después se probó "Vision" — pero al forzar el
+reconocimiento a español (ver /api/v1/voice/transcribe), Whisper
+alucinaba palabras random tratando de encajar la pronunciación inglesa de
+"Vision" en fonética española ("¡Bizio!", "Beseo.", nunca "vision").
+"Ali" es corta y sin sonidos ambiguos para el español, así que transcribe
+mucho más consistente. El mecanismo no cambió.
 
 No usa un motor de wake-word dedicado (Porcupine necesita cuenta/licencia;
-openWakeWord no trae un modelo en español para "Atlas" listo para usar).
-En cambio, reutiliza el Whisper local que ya expone el backend
+openWakeWord no trae un modelo en español para esta palabra listo para
+usar). En cambio, reutiliza el Whisper local que ya expone el backend
 (/api/v1/voice/transcribe): mantiene un buffer de audio deslizante (no
-bloques fijos pegados uno tras otro — así "Atlas" nunca queda cortado justo
-en el límite entre dos grabaciones), se salta las ventanas en silencio
-(filtro de energía, barato y local) y solo transcribe las que tienen sonido
-real, buscando "atlas" en el texto resultante.
+bloques fijos pegados uno tras otro — así la palabra nunca queda cortada
+justo en el límite entre dos grabaciones), se salta las ventanas en
+silencio (filtro de energía, barato y local) y solo transcribe las que
+tienen sonido real, buscando "ali" en el texto resultante.
 
 Limitación conocida: más lento y menos preciso que un motor de wake-word
-dedicado (~1-3s de latencia), y puede confundir "Atlas" con palabras
+dedicado (~1-3s de latencia), y puede confundir la palabra con otras
 parecidas. Es la versión V1.
 """
 from __future__ import annotations
@@ -19,6 +26,7 @@ import io
 import re
 import threading
 import time
+import unicodedata
 from collections import deque
 from collections.abc import Callable
 
@@ -45,15 +53,25 @@ def has_speech(chunk: np.ndarray, threshold: float = SILENCE_RMS_THRESHOLD) -> b
     return rms >= threshold
 
 
-def contains_wake_word(text: str, wake_word: str = "atlas") -> bool:
-    """True solo si "atlas" aparece entre las primeras palabras del texto —
-    como cuando alguien te llama por tu nombre al empezar a hablarte. Antes
-    se buscaba en cualquier parte del texto, lo que disparaba falsos
-    positivos con conversaciones de fondo que mencionaban "atlas" de pasada
-    a mitad de una frase que no era para ATLAS."""
+def _strip_accents(word: str) -> str:
+    """Normaliza tildes (NFKD + descarta marcas de acento) para que "vision"
+    matchee tanto si Whisper transcribe "vision" como "visión" — la
+    ortografía correcta en español lleva tilde (por ser aguda terminada en
+    "n"), pero Whisper no siempre la pone en clips cortos/ambiguos."""
+    normalized = unicodedata.normalize("NFKD", word)
+    return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+
+def contains_wake_word(text: str, wake_word: str = "ali") -> bool:
+    """True solo si la palabra de activación aparece entre las primeras
+    palabras del texto — como cuando alguien te llama por tu nombre al
+    empezar a hablarte. Antes se buscaba en cualquier parte del texto, lo
+    que disparaba falsos positivos con conversaciones de fondo que
+    mencionaban la palabra de pasada a mitad de una frase que no era para
+    ATLAS."""
     words = re.findall(r"[a-záéíóúñ]+", (text or "").lower())
-    leading_words = words[:2]
-    return wake_word.lower() in leading_words
+    leading_words = [_strip_accents(w) for w in words[:2]]
+    return _strip_accents(wake_word.lower()) in leading_words
 
 
 def to_wav_bytes(audio: np.ndarray, sample_rate: int = SAMPLE_RATE) -> bytes:
@@ -73,10 +91,15 @@ def record_command_until_silence(
     trailing_silence_chunks: int = 2,
     chunk_seconds: float = 1.0,
     sample_rate: int = SAMPLE_RATE,
+    on_level: Callable[[float], None] | None = None,
 ) -> np.ndarray:
     """Graba el comando después de detectar la palabra de activación: sigue
     grabando mientras haya voz, y corta tras un par de segundos de silencio
-    (o al llegar a max_seconds, lo que pase primero)."""
+    (o al llegar a max_seconds, lo que pase primero).
+
+    on_level: callback opcional que recibe la amplitud (0..1) de cada bloque
+    grabado. Lo usa el visualizador del cliente de escritorio para moverse
+    con audio real en vez de con una animación inventada."""
     frames: list[np.ndarray] = []
     started_speaking = False
     silence_streak = 0
@@ -85,6 +108,9 @@ def record_command_until_silence(
     while elapsed < max_seconds:
         chunk = _record_chunk(chunk_seconds, sample_rate)
         elapsed += chunk_seconds
+        if on_level is not None:
+            rms = float(np.sqrt(np.mean(np.square(chunk.astype(np.float64))))) if chunk.size else 0.0
+            on_level(min(1.0, rms / 6000.0))
         if has_speech(chunk):
             started_speaking = True
             silence_streak = 0
@@ -110,7 +136,7 @@ class WakeWordListener:
     parlantes (eco) mientras responde.
     """
 
-    def __init__(self, on_activated: Callable[[], None], wake_word: str = "atlas") -> None:
+    def __init__(self, on_activated: Callable[[], None], wake_word: str = "ali") -> None:
         self._on_activated = on_activated
         self._wake_word = wake_word
         self._stop_event = threading.Event()
@@ -184,6 +210,7 @@ class WakeWordListener:
         except Exception:  # noqa: BLE001 — un fallo de transcripción no debe matar el loop
             return
 
+        print(f"[wake_word] transcripción: {text!r}", flush=True)  # DEBUG temporal
         if not contains_wake_word(text, self._wake_word):
             return
 

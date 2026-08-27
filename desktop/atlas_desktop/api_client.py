@@ -11,6 +11,7 @@ cada request autenticado.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import requests
 
@@ -107,6 +108,132 @@ def synthesize_speech(text: str) -> bytes:
     )
     response.raise_for_status()
     return response.content
+
+
+def identify_song(wav_bytes: bytes) -> dict[str, Any]:
+    """Fase 10: reconocimiento de canciones (tipo Shazam), vía AudD.
+    Devuelve {"found": bool, "artist"?, "title"?, "album"?, "song_link"?}."""
+    response = requests.post(
+        f"{ATLAS_API_URL}/api/v1/music/identify",
+        files={"audio": ("clip.wav", wav_bytes, "audio/wav")},
+        headers=_auth_headers(),
+        timeout=TIMEOUT_SECONDS,
+        verify=ATLAS_CA_CERT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def _get(path: str, timeout: int = 15) -> Any:
+    response = requests.get(
+        f"{ATLAS_API_URL}{path}", headers=_auth_headers(), timeout=timeout, verify=ATLAS_CA_CERT
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+# ---------- Lecturas para las vistas del cliente (Fase 15) ----------
+# Envoltorios finos sobre los mismos endpoints que consume el dashboard, para
+# que las dos interfaces muestren exactamente los mismos datos.
+
+
+def get_profile() -> dict:
+    return _get("/api/v1/settings/profile")
+
+
+def list_devices() -> list[dict]:
+    return _get("/api/v1/devices")
+
+
+def list_automations() -> list[dict]:
+    return _get("/api/v1/automations")
+
+
+def run_routine(routine_id: int) -> dict:
+    response = requests.post(
+        f"{ATLAS_API_URL}/api/v1/automations/{routine_id}/run",
+        headers=_auth_headers(),
+        timeout=TIMEOUT_SECONDS,
+        verify=ATLAS_CA_CERT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def list_reminders() -> list[dict]:
+    return _get("/api/v1/reminders")
+
+
+def create_reminder(text: str, due_at: str) -> dict:
+    response = requests.post(
+        f"{ATLAS_API_URL}/api/v1/reminders",
+        json={"text": text, "due_at": due_at},
+        headers=_auth_headers(),
+        timeout=TIMEOUT_SECONDS,
+        verify=ATLAS_CA_CERT,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def complete_reminder(reminder_id: int) -> None:
+    response = requests.patch(
+        f"{ATLAS_API_URL}/api/v1/reminders/{reminder_id}/done",
+        headers=_auth_headers(),
+        timeout=TIMEOUT_SECONDS,
+        verify=ATLAS_CA_CERT,
+    )
+    response.raise_for_status()
+
+
+def delete_reminder(reminder_id: int) -> None:
+    response = requests.delete(
+        f"{ATLAS_API_URL}/api/v1/reminders/{reminder_id}",
+        headers=_auth_headers(),
+        timeout=TIMEOUT_SECONDS,
+        verify=ATLAS_CA_CERT,
+    )
+    response.raise_for_status()
+
+
+def list_memory() -> list[dict]:
+    return _get("/api/v1/memory")
+
+
+def delete_memory(memory_id: int) -> None:
+    response = requests.delete(
+        f"{ATLAS_API_URL}/api/v1/memory/{memory_id}",
+        headers=_auth_headers(),
+        timeout=TIMEOUT_SECONDS,
+        verify=ATLAS_CA_CERT,
+    )
+    response.raise_for_status()
+
+
+def list_notifications() -> list[dict]:
+    return _get("/api/v1/notifications")
+
+
+def mark_notification_read(notification_id: int) -> None:
+    response = requests.patch(
+        f"{ATLAS_API_URL}/api/v1/notifications/{notification_id}/read",
+        headers=_auth_headers(),
+        timeout=TIMEOUT_SECONDS,
+        verify=ATLAS_CA_CERT,
+    )
+    response.raise_for_status()
+
+
+def list_tools() -> list[dict]:
+    return _get("/api/v1/tools")
+
+
+def get_activity(limit: int = 30) -> list[dict]:
+    return _get(f"/api/v1/system/activity?limit={limit}")
+
+
+def get_gesture_status() -> dict:
+    return _get("/api/v1/gestures/status")
 
 
 def get_system_status() -> dict:

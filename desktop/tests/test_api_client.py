@@ -131,6 +131,23 @@ def test_transcribe_audio_sends_multipart_file(monkeypatch):
     assert text == "hola"
 
 
+def test_identify_song_sends_multipart_file_and_parses_result(monkeypatch):
+    captured = {}
+
+    def fake_post(url, files=None, **kwargs):
+        captured["url"] = url
+        captured["files"] = files
+        return FakeResponse(_json={"found": True, "artist": "Queen", "title": "Bohemian Rhapsody"})
+
+    monkeypatch.setattr(api_client.requests, "post", fake_post)
+
+    result = api_client.identify_song(b"fake-wav-bytes")
+
+    assert captured["url"].endswith("/api/v1/music/identify")
+    assert "audio" in captured["files"]
+    assert result == {"found": True, "artist": "Queen", "title": "Bohemian Rhapsody"}
+
+
 def test_synthesize_speech_returns_raw_audio_bytes(monkeypatch):
     monkeypatch.setattr(
         api_client.requests, "post", lambda url, json=None, **kwargs: FakeResponse(content=b"RIFF....")

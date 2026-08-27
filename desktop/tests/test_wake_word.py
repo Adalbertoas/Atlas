@@ -20,9 +20,9 @@ def test_has_speech_handles_empty_chunk():
 
 
 def test_contains_wake_word_matches_when_said_first():
-    assert contains_wake_word("Atlas, que hora es?") is True
-    assert contains_wake_word("ATLAS que hora es") is True
-    assert contains_wake_word("hola atlas") is True  # "atlas" sigue entre las 2 primeras palabras
+    assert contains_wake_word("Ali, que hora es?") is True
+    assert contains_wake_word("ALI que hora es") is True
+    assert contains_wake_word("hola ali") is True  # "ali" sigue entre las 2 primeras palabras
 
 
 def test_contains_wake_word_false_when_absent():
@@ -31,8 +31,14 @@ def test_contains_wake_word_false_when_absent():
 
 def test_contains_wake_word_ignores_mentions_mid_sentence():
     # Caso real que causaba falsos positivos: una conversación de fondo que
-    # menciona "atlas" de pasada no debe disparar el asistente.
-    assert contains_wake_word("estábamos viendo un mapa, el atlas ese que compramos") is False
+    # menciona la palabra de pasada no debe disparar el asistente.
+    assert contains_wake_word("estábamos hablando de ali, mi vecina") is False
+
+
+def test_contains_wake_word_does_not_match_prefix_words():
+    # "ali" no debe matchear como substring de otras palabras (ej.
+    # "alimento", "alicate") — solo como palabra completa.
+    assert contains_wake_word("alimento para el perro") is False
 
 
 def test_contains_wake_word_handles_empty_text():
