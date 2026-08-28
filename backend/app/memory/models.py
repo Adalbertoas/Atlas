@@ -23,6 +23,11 @@ class MemoryEntry(Base):
     category: Mapped[str] = mapped_column(String(50), default="personal")
     content: Mapped[str] = mapped_column(Text)
     tags: Mapped[str] = mapped_column(String(300), default="")  # CSV simple para V1
+    # Vector de embedding como JSON (lista de floats), nullable: las memorias
+    # creadas antes de este campo quedan sin embedding hasta que
+    # backfill_memory_embeddings.py las procese, y mientras tanto siguen
+    # siendo encontrables por el fallback de texto en search_memories().
+    embedding: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

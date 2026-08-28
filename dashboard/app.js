@@ -2,6 +2,7 @@
 
 import { WakeWordEngine } from "/shared/wake-word.js";
 import { renderMarkdown } from "/shared/markdown.js";
+import { isPushSubscribed, subscribePush, unsubscribePush } from "/shared/push.js";
 
 /* ============================================================
    ATLAS — Dashboard (Fase 11: rediseño)
@@ -136,6 +137,18 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 function logout() {
+  // Revoca el token en el backend antes de descartarlo localmente — sin
+  // esto, un token copiado/filtrado seguía sirviendo hasta que expirara
+  // solo. Best-effort: si falla (sin red, backend caído), el logout local
+  // sigue adelante igual — no tiene sentido bloquear al usuario por esto.
+  // fetch directo (no el helper `api()`) para no re-entrar en logout() si
+  // el 401 handler de `api()` disparara este mismo flujo.
+  if (TOKEN) {
+    fetch(`${API_URL}/api/v1/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    }).catch(() => {});
+  }
   TOKEN = null;
   localStorage.removeItem("atlas_dashboard_token");
   appScreen.classList.add("hidden");
@@ -270,30 +283,105 @@ function showTyping() {
   return bubble;
 }
 
+/* Parsea el cuerpo de un evento SSE ("event: X\ndata: Y") — el backend
+   siempre manda exactamente esas dos líneas por evento (el JSON de `data`
+   va en una sola línea), así que no hace falta un parser SSE completo. */
+function parseSseEvent(rawEvent) {
+  const [eventLine, dataLine] = rawEvent.split("\n");
+  return {
+    type: (eventLine || "").replace(/^event:\s*/, ""),
+    data: dataLine ? JSON.parse(dataLine.replace(/^data:\s*/, "")) : {},
+  };
+}
+
 async function sendChat(message, { switchView = false } = {}) {
   if (switchView) goToView("chat");
   appendBubble("user", message);
-  const typingBubble = showTyping();
+  const atlasBubble = showTyping();
+
+  let accumulated = "";
+  let started = false; // pasa de "escribiendo…" a texto real en el primer token
+  function ensureStarted() {
+    if (started) return;
+    started = true;
+    atlasBubble.className = "chat-bubble atlas";
+  }
+
   try {
-    const result = await api("/api/v1/chat", {
+    const headers = { "Content-Type": "application/json" };
+    if (TOKEN) headers["Authorization"] = `Bearer ${TOKEN}`;
+    const response = await fetch(`${API_URL}/api/v1/chat/stream`, {
       method: "POST",
+      headers,
       body: JSON.stringify({ message, conversation_id: CONVERSATION_ID }),
     });
-    CONVERSATION_ID = result.conversation_id;
-    typingBubble.remove();
-    if (result.requires_confirmation) {
-      askConfirmation(result.confirmation_id, result.confirmation_description);
-    } else if (result.reply) {
-      appendBubble("atlas", result.reply);
-      speak(result.reply);
+
+    if (response.status === 401) {
+      logout();
+      throw new Error("Sesión expirada, iniciá sesión de nuevo.");
     }
+    if (!response.ok || !response.body) {
+      throw new Error(response.statusText || "No se pudo conectar al servidor.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalReply = null;
+    let toolHint = "";
+
+    readLoop: while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let separatorIndex;
+      while ((separatorIndex = buffer.indexOf("\n\n")) !== -1) {
+        const { type, data } = parseSseEvent(buffer.slice(0, separatorIndex));
+        buffer = buffer.slice(separatorIndex + 2);
+
+        if (type === "token" && data.text) {
+          ensureStarted();
+          accumulated += data.text;
+          toolHint = "";
+          atlasBubble.innerHTML = renderMarkdown(accumulated);
+          chatLog.scrollTop = chatLog.scrollHeight;
+        } else if (type === "tool_call") {
+          // Indicador liviano mientras corre una tool (clima, búsqueda web,
+          // etc.) — antes era puro silencio entre el "escribiendo…" inicial
+          // y la respuesta final, ahora se ve qué está haciendo ATLAS.
+          ensureStarted();
+          toolHint = `<div class="chat-tool-hint">${icon("automation")}<span>usando ${esc(
+            data.tool_description || data.tool_name || ""
+          )}…</span></div>`;
+          atlasBubble.innerHTML = renderMarkdown(accumulated) + toolHint;
+          chatLog.scrollTop = chatLog.scrollHeight;
+        } else if (type === "confirmation") {
+          atlasBubble.remove();
+          if (data.conversation_id) CONVERSATION_ID = data.conversation_id;
+          askConfirmation(data.confirmation_id, data.confirmation_description);
+          reader.cancel().catch(() => {}); // no queda esperando más eventos que no van a llegar
+          break readLoop;
+        } else if (type === "done") {
+          if (data.conversation_id) CONVERSATION_ID = data.conversation_id;
+          finalReply = data.reply ?? accumulated;
+        }
+      }
+    }
+
+    if (finalReply !== null) {
+      ensureStarted();
+      atlasBubble.innerHTML = renderMarkdown(finalReply);
+      if (finalReply) speak(finalReply);
+    }
+
     // Una acción del chat pudo cambiar el estado real (encender una luz,
     // crear un recordatorio) — refrescar lo que muestra el dashboard.
     loadDevices();
     loadActivity();
     loadReminders();
   } catch (err) {
-    typingBubble.remove();
+    atlasBubble.remove();
     appendBubble("atlas", `(error: ${err.message})`);
   }
 }
@@ -842,6 +930,39 @@ async function loadNotifications() {
   }
 }
 document.getElementById("refresh-notifications").addEventListener("click", loadNotifications);
+
+/* ---------- Push notifications (Fase 22) ---------- */
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
+async function refreshPushButton() {
+  const button = document.getElementById("toggle-push");
+  const subscribed = await isPushSubscribed().catch(() => false);
+  button.textContent = subscribed ? "🔕 Desactivar notificaciones push" : "🔔 Activar notificaciones push";
+  button.dataset.subscribed = subscribed ? "1" : "0";
+}
+
+document.getElementById("toggle-push").addEventListener("click", async (event) => {
+  const button = event.target;
+  button.disabled = true;
+  try {
+    if (button.dataset.subscribed === "1") {
+      await unsubscribePush(api);
+    } else {
+      await subscribePush(api);
+    }
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    button.disabled = false;
+    refreshPushButton();
+  }
+});
+refreshPushButton();
 
 /* Sondeo de notificaciones: sin esto el badge solo se actualizaba al cargar
    la página, así que un recordatorio que vencía mientras la tenías abierta
@@ -1799,6 +1920,33 @@ listenShazam.addEventListener("click", async () => {
   setTimeout(() => recorder.stop(), SHAZAM_RECORD_MS);
 });
 
+function appendSongCard(result) {
+  // AudD se pide con `return: spotify` (ver app/integrations/audd.py) — su
+  // propio song_link es un smart-link (lis.tn/...) sin miniatura asociada;
+  // cover_url sale de la metadata real de Spotify que ya viene en la misma
+  // respuesta. Sin cover_url (canción no encontrada en el catálogo de
+  // Spotify, poco común) cae al texto plano de siempre.
+  const label = result.album ? `${result.title} — ${result.artist} (${result.album})` : `${result.title} — ${result.artist}`;
+  const link = result.track_url || result.song_link;
+
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble atlas";
+
+  if (result.cover_url && link) {
+    bubble.innerHTML =
+      `<a class="chat-link-card" href="${esc(link)}" target="_blank" rel="noopener noreferrer">` +
+      `<span class="thumb"><img src="${esc(result.cover_url)}" alt="" loading="lazy">` +
+      `<span class="play-badge">${icon("music")}</span></span>` +
+      `<span class="chat-link-card-label">${esc(label)}</span>` +
+      `</a>`;
+  } else {
+    bubble.innerHTML = renderMarkdown(link ? `${label}\n${link}` : label);
+  }
+
+  chatLog.appendChild(bubble);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
 async function identifySong(blob) {
   const form = new FormData();
   form.append("audio", blob, "audio.webm");
@@ -1808,10 +1956,7 @@ async function identifySong(blob) {
       appendBubble("atlas", "No reconocí ninguna canción — probá de nuevo con más volumen.");
       return;
     }
-    let reply = `${result.title} — ${result.artist}`;
-    if (result.album) reply += ` (${result.album})`;
-    if (result.song_link) reply += `\n${result.song_link}`;
-    appendBubble("atlas", reply);
+    appendSongCard(result);
   } catch (err) {
     appendBubble("atlas", `(error reconociendo la canción: ${err.message})`);
   }

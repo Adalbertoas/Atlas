@@ -1,0 +1,47 @@
+name: Backend tests
+
+# Corre los tests del backend (Fase 27) en cada push y PR. No existía
+# ningún CI: con 263+ tests ya escritos, la inversión de no correrlos
+# automáticamente era quedarse con la parte más barata sin hacer — un
+# commit que rompe algo solo se notaba si alguien corría `pytest` a mano.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+
+jobs:
+  test:
+    # windows-latest, no ubuntu: el proyecto importa `pyautogui` a nivel de
+    # módulo (control de mouse por gestos) y eso rompe en un runner Linux
+    # sin servidor X. Coherente además con la plataforma real del proyecto
+    # (WMI, voces SAPI, cliente de escritorio) — ver docs/architecture.md.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Correr tests
+        # AI_PROVIDER/STT_PROVIDER/etc. ya caen en "mock" por defecto (ver
+        # app/config.py) y conftest.py fuerza vacías las credenciales de
+        # integraciones externas — el único valor que hace falta fijar acá
+        # es ATLAS_PASSWORD, que auth_headers necesita para loguearse.
+        env:
+          ATLAS_PASSWORD: test-password
+        run: pytest -v

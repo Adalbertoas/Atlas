@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 
 def test_chat_requires_authentication(client):
     response = client.post("/api/v1/chat", json={"message": "hola"})
@@ -17,6 +19,22 @@ def test_login_with_correct_password_returns_token(client):
     assert response.json()["access_token"]
 
 
+def test_logout_revokes_the_token(client, auth_headers):
+    # El token de auth_headers sirve antes de cerrar sesión.
+    assert client.get("/api/v1/memory", headers=auth_headers).status_code == 200
+
+    logout_response = client.post("/api/v1/auth/logout", headers=auth_headers)
+    assert logout_response.status_code == 200
+
+    # Y deja de servir después.
+    assert client.get("/api/v1/memory", headers=auth_headers).status_code == 401
+
+
+def test_logout_requires_authentication(client):
+    response = client.post("/api/v1/auth/logout")
+    assert response.status_code == 401
+
+
 def test_read_only_command_executes_directly(client, auth_headers):
     response = client.post("/api/v1/chat", json={"message": "¿qué hora es?"}, headers=auth_headers)
     assert response.status_code == 200
@@ -32,6 +50,53 @@ def test_medium_risk_command_requires_confirmation(client, auth_headers):
     assert body["requires_confirmation"] is True
     assert body["confirmation_id"]
     assert "notepad" in body["confirmation_description"].lower()
+
+
+def _parse_sse(raw_text: str) -> list[dict]:
+    """Parsea el cuerpo de un stream de Server-Sent Events a una lista de
+    {"event": ..., "data": {...}} — suficiente para los tests, no un parser
+    SSE completo (no hace falta soportar `id:`/reconexión acá)."""
+    events = []
+    for block in raw_text.strip().split("\n\n"):
+        if not block.strip():
+            continue
+        event_type, data_line = block.split("\n", 1)
+        events.append(
+            {
+                "event": event_type.removeprefix("event: "),
+                "data": json.loads(data_line.removeprefix("data: ")),
+            }
+        )
+    return events
+
+
+def test_chat_stream_requires_authentication(client):
+    response = client.post("/api/v1/chat/stream", json={"message": "hola"})
+    assert response.status_code == 401
+
+
+def test_chat_stream_emits_tokens_then_done(client, auth_headers):
+    with client.stream(
+        "POST", "/api/v1/chat/stream", json={"message": "hola"}, headers=auth_headers
+    ) as response:
+        assert response.status_code == 200
+        raw = "".join(response.iter_text())
+
+    events = _parse_sse(raw)
+    assert events, "el stream no devolvió ningún evento"
+    assert events[-1]["event"] == "done"
+    assert events[-1]["data"]["reply"]
+    assert events[-1]["data"]["conversation_id"]
+
+
+def test_chat_stream_reuses_conversation_id(client, auth_headers):
+    with client.stream(
+        "POST", "/api/v1/chat/stream", json={"message": "hola", "conversation_id": "conv-stream-test"}, headers=auth_headers
+    ) as response:
+        raw = "".join(response.iter_text())
+
+    events = _parse_sse(raw)
+    assert events[-1]["data"]["conversation_id"] == "conv-stream-test"
 
 
 def test_cancelling_a_confirmation_does_not_execute(client, auth_headers):
@@ -124,6 +189,11 @@ def test_tools_endpoint_lists_all_base_tools(client, auth_headers):
         "create_reminder",
         "list_reminders",
         "search_web",
+        "list_calendar_events",
+        "create_calendar_event",
+        "list_unread_emails",
+        "send_email",
+        "get_travel_time",
     }
 
 

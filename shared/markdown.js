@@ -38,8 +38,11 @@ function renderLink(url, label) {
   }
   return (
     `<a class="chat-link-card" href="${url}" target="_blank" rel="noopener noreferrer">` +
+    `<span class="thumb">` +
     `<img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" alt="" loading="lazy">` +
-    `<span class="chat-link-card-label">▶ Ver en YouTube</span>` +
+    `<span class="play-badge"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7Z"/></svg></span>` +
+    `</span>` +
+    `<span class="chat-link-card-label">Ver en YouTube</span>` +
     `</a>`
   );
 }

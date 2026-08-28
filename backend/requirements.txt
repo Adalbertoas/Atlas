@@ -3,6 +3,7 @@ uvicorn[standard]==0.34.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
 SQLAlchemy==2.0.36
+alembic==1.19.1
 anthropic==0.42.0
 psutil==6.1.1
 # Temperatura de CPU en Windows (psutil.sensors_temperatures es solo Linux).
@@ -35,6 +36,17 @@ requests==2.34.2
 # Búsqueda web sin API key (WEB_SEARCH_PROVIDER=duckduckgo). Vía no
 # oficial: puede limitar por frecuencia. Tavily es la alternativa con cuenta.
 ddgs==9.16.0
+
+# Búsqueda semántica de memoria (EMBEDDING_PROVIDER=fastembed). Modelo ONNX
+# local (~90MB), sin API key. Opcional: EMBEDDING_PROVIDER=mock (default)
+# no la necesita, así que no es obligatoria para correr tests/levantar el
+# server rápido.
+fastembed==0.4.2
+
+# Push notifications reales (Web Push/VAPID, Fase 22). Sin API key ni
+# cuenta externa: el par de claves VAPID se genera localmente con
+# scripts/generate_vapid_keys.py.
+pywebpush==2.0.3
 
 # Testing
 pytest==8.3.4

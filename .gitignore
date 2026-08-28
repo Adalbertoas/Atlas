@@ -38,6 +38,10 @@ build/
 ## Certificados HTTPS de desarrollo (autofirmados, generados localmente)
 certs/
 
+## Backups automáticos de la base de datos (Fase 26) — *.db ya los cubre,
+## explícito igual para que quede documentado por qué existe la carpeta.
+backend/backups/
+
 ## Misc
 *.tmp
 .env.local

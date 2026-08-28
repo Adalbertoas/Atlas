@@ -7,7 +7,12 @@ from app.tools.base import Tool, ToolContext, ToolResult
 
 class SearchMemoryTool(Tool):
     name = "search_memory"
-    description = "Busca en la memoria personal de ATLAS. Si no se da 'query', lista lo más reciente."
+    description = (
+        "Busca en la memoria personal de ATLAS. Entiende significado, no solo texto exacto "
+        "(ej. 'query'='en qué trabajo' puede encontrar una memoria que dice 'programa en Python "
+        "para una startup', aunque no compartan ninguna palabra). Si no se da 'query', lista lo "
+        "más reciente."
+    )
     parameters = {
         "type": "object",
         "properties": {

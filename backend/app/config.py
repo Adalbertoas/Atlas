@@ -22,9 +22,29 @@ class Settings(BaseSettings):
     ai_provider: str = "mock"  # "anthropic" | "mock"
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5-20250929"
+    # Límite de gasto estimado en la API de Anthropic (Fase 28). 0 = sin
+    # tope. No es la factura real, es una estimación por tabla de precios
+    # (ver app/core/usage.py) — un guardarraíl barato, no un medidor exacto.
+    anthropic_daily_budget_usd: float = 5.0
+    anthropic_monthly_budget_usd: float = 0.0
 
     jwt_secret: str = "changeme-generate-a-real-secret"
     jwt_expire_minutes: int = 1440
+    # Rate limiting de /auth/login (sección 5, endurecido): tras
+    # login_max_attempts fallos seguidos desde la misma IP, se bloquea por
+    # login_lockout_seconds. Sistema de un solo usuario: nadie legítimo
+    # necesita más de 5 intentos para acordarse de su propia contraseña.
+    login_max_attempts: int = 5
+    login_lockout_seconds: int = 900
+
+    # Backups automáticos de la base de datos (Fase 26). Solo aplica a
+    # SQLite (ver app/core/backup.py). Uno al arrancar + uno cada
+    # backup_interval_hours mientras el proceso sigue corriendo; se
+    # conservan los backup_keep_count más recientes.
+    backup_enabled: bool = True
+    backup_dir: str = "backups"
+    backup_interval_hours: int = 24
+    backup_keep_count: int = 7
     # Sistema de un solo usuario (no multi-tenant): una contraseña, no una
     # tabla de usuarios. Se compara contra esta variable de entorno, igual
     # criterio que las demás credenciales del proyecto.
@@ -53,6 +73,12 @@ class Settings(BaseSettings):
 
     vision_provider: str = "mock"  # "anthropic" | "mock"
 
+    # Búsqueda semántica de memoria (fastembed local, gratis, sin API key).
+    # "mock" por defecto: no descarga ningún modelo, para no obligar a
+    # tenerlo instalado solo para correr tests o levantar el server rápido.
+    embedding_provider: str = "mock"  # "fastembed" | "mock"
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+
     # --- Integraciones externas (Fase 10) ---
     # Wikipedia y el clima (Open-Meteo) no necesitan key, funcionan siempre.
     # YouTube y Spotify sí: si falta la key/credencial, la tool respectiva
@@ -71,6 +97,33 @@ class Settings(BaseSettings):
     # mejores resultados y una respuesta ya sintetizada, pero pide cuenta.
     web_search_provider: str = "duckduckgo"  # "duckduckgo" | "tavily"
     tavily_api_key: str = ""
+
+    # --- Google Calendar (Fase 21) ---
+    # OAuth2 "instalada" (loopback): no hay servidor propio que reciba el
+    # redirect, `scripts/google_calendar_setup.py` levanta uno temporal en
+    # localhost solo durante el consentimiento. Mismo criterio que
+    # YouTube/Spotify/AudD: sin credenciales, la tool devuelve un error
+    # explicando qué falta en vez de romper el resto de ATLAS.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # Se obtiene una sola vez corriendo el script de setup y no expira
+    # (a diferencia del access_token, que dura ~1h y se refresca solo).
+    google_refresh_token: str = ""
+    # "primary" = el calendario principal de la cuenta. Se puede apuntar a
+    # otro calendario por su ID (visible en la configuración de Google
+    # Calendar, sección "Integrar calendario").
+    google_calendar_id: str = "primary"
+
+    # --- Push notifications reales (Fase 22, Web Push/VAPID) ---
+    # Generadas una sola vez con scripts/generate_vapid_keys.py — el par
+    # identifica a ATLAS ante los servicios push de los navegadores
+    # (Chrome/Firefox/Edge), no depende de ninguna cuenta externa.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    # "mailto:" + un email de contacto real: es el claim `sub` que exige el
+    # protocolo VAPID — permite que el servicio push del navegador contacte
+    # al dueño de la app si algo sale mal (ej. exceso de envíos).
+    vapid_contact_email: str = ""
 
     # Nombre para el saludo del dashboard ("¡Hola, X!"). Vacío por defecto:
     # sin nombre configurado el saludo es genérico ("¡Hola!"), en vez de

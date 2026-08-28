@@ -42,6 +42,11 @@ def build_default_registry() -> ToolRegistry:
     from app.tools.knowledge.search_wikipedia import SearchWikipediaTool
     from app.tools.media.control_media import ControlMediaTool
     from app.tools.automation.run_routine import RunRoutineTool
+    from app.tools.calendar.create_event import CreateCalendarEventTool
+    from app.tools.calendar.list_events import ListCalendarEventsTool
+    from app.tools.gmail.list_unread_emails import ListUnreadEmailsTool
+    from app.tools.gmail.send_email import SendEmailTool
+    from app.tools.maps.get_travel_time import GetTravelTimeTool
     from app.tools.memory_tools.create_memory import CreateMemoryTool
     from app.tools.memory_tools.search_memory import SearchMemoryTool
     from app.tools.music.search_spotify import SearchSpotifyTool
@@ -57,6 +62,8 @@ def build_default_registry() -> ToolRegistry:
     from app.tools.vision.analyze_screenshot import AnalyzeScreenshotTool
     from app.tools.weather.get_weather import GetWeatherTool
     from app.events.bus import event_bus
+    from app.integrations.gmail import GmailClient
+    from app.integrations.google_calendar import GoogleCalendarClient
     from app.integrations.spotify import SpotifyClient
     from app.smart_home.provider_factory import get_smart_home_provider
     from app.vision.provider_factory import get_vision_provider
@@ -65,6 +72,15 @@ def build_default_registry() -> ToolRegistry:
     smart_home_provider = get_smart_home_provider()
     vision_provider = get_vision_provider()
     spotify_client = SpotifyClient(settings.spotify_client_id, settings.spotify_client_secret)
+    calendar_client = GoogleCalendarClient(
+        settings.google_client_id,
+        settings.google_client_secret,
+        settings.google_refresh_token,
+        settings.google_calendar_id,
+    )
+    gmail_client = GmailClient(
+        settings.google_client_id, settings.google_client_secret, settings.google_refresh_token
+    )
 
     registry = ToolRegistry()
     for tool in (
@@ -91,6 +107,11 @@ def build_default_registry() -> ToolRegistry:
         SearchSpotifyTool(spotify_client),
         CreateReminderTool(),
         ListRemindersTool(),
+        ListCalendarEventsTool(calendar_client),
+        CreateCalendarEventTool(calendar_client),
+        ListUnreadEmailsTool(gmail_client),
+        SendEmailTool(gmail_client),
+        GetTravelTimeTool(),
     ):
         registry.register(tool)
 

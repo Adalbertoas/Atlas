@@ -1,0 +1,6 @@
+# Dependencias del smoke test E2E del dashboard — separadas de
+# backend/requirements.txt a propósito: no todo el que corre los tests del
+# backend necesita un navegador Chromium de ~150MB descargado.
+playwright==1.62.0
+pytest-playwright==0.9.0
+requests==2.34.2

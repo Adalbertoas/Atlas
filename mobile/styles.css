@@ -10,6 +10,9 @@
   --danger: #e05252;
   --success: #4caf6a;
   --radius: 14px;
+
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -20,7 +23,10 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-body);
+  font-feature-settings: "cv11", "ss01", "tnum";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   overflow-x: hidden;
 }
 
@@ -43,9 +49,10 @@ html, body {
 }
 
 .logo {
-  font-size: 2.2rem;
+  font-family: var(--font-display);
+  font-size: 2.3rem;
   font-weight: 700;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.13em;
   color: var(--accent);
 }
 
@@ -138,6 +145,18 @@ details {
 
 .view { display: none; }
 .view.active { display: block; }
+
+#toggle-push {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
 
 .view-header {
   display: flex;
@@ -447,20 +466,63 @@ details {
    "buscá X en YouTube" muestre algo más que una URL pelada. */
 .chat-link-card {
   display: block;
+  position: relative;
   margin: 6px 0;
   max-width: 220px;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
   background: var(--bg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.chat-link-card:hover { text-decoration: none !important; border-color: var(--accent); }
-.chat-link-card img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--bg); }
+.chat-link-card:hover {
+  text-decoration: none !important;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+.chat-link-card .thumb { position: relative; overflow: hidden; aspect-ratio: 16 / 9; background: var(--card); }
+.chat-link-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--bg);
+  transition: transform 0.35s ease;
+}
+.chat-link-card:hover img { transform: scale(1.06); }
+.chat-link-card .thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 55%, rgba(0, 0, 0, 0.75));
+}
+.chat-link-card .play-badge {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.chat-link-card:hover .play-badge { background: var(--accent); color: #04141a; }
+.chat-link-card .play-badge svg { width: 14px; height: 14px; margin-left: 2px; fill: currentColor; }
 .chat-link-card-label {
   display: block;
-  padding: 6px 10px;
+  padding: 8px 10px;
   font-size: 0.78rem;
-  color: var(--text-dim);
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-bubble.atlas code {

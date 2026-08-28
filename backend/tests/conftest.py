@@ -12,6 +12,7 @@ os.environ.setdefault("STT_PROVIDER", "mock")
 os.environ.setdefault("TTS_PROVIDER", "mock")
 os.environ.setdefault("SMART_HOME_PROVIDER", "mock")
 os.environ.setdefault("VISION_PROVIDER", "mock")
+os.environ.setdefault("EMBEDDING_PROVIDER", "mock")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("ATLAS_PASSWORD", "test-password")
 
@@ -26,6 +27,12 @@ os.environ.setdefault("SPOTIFY_CLIENT_ID", "")
 os.environ.setdefault("SPOTIFY_CLIENT_SECRET", "")
 os.environ.setdefault("ATLAS_USER_NAME", "")
 os.environ.setdefault("TAVILY_API_KEY", "")
+os.environ.setdefault("GOOGLE_CLIENT_ID", "")
+os.environ.setdefault("GOOGLE_CLIENT_SECRET", "")
+os.environ.setdefault("GOOGLE_REFRESH_TOKEN", "")
+os.environ.setdefault("VAPID_PUBLIC_KEY", "")
+os.environ.setdefault("VAPID_PRIVATE_KEY", "")
+os.environ.setdefault("VAPID_CONTACT_EMAIL", "")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -49,6 +56,7 @@ def db_session():
         poolclass=StaticPool,
     )
     from app.automation import models as _automation_models  # noqa: F401
+    from app.core import usage as _usage_models  # noqa: F401
     from app.memory import models as _memory_models  # noqa: F401
     from app.notifications import models as _notifications_models  # noqa: F401
     from app.personality import models as _personality_models  # noqa: F401
@@ -74,6 +82,24 @@ def client(db_session):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_rate_limiter():
+    """login_rate_limiter y chat_rate_limiter son singletons de proceso
+    (app/security/rate_limit.py): sin resetear su estado entre tests, un
+    test que agota los intentos de login dejaría la IP de prueba bloqueada
+    por 15 minutos reales para todos los tests que corren después (incluida
+    auth_headers, que la usan casi todos). Mismo problema con chat_rate_limiter:
+    la suite manda muchos más de 30 requests a /chat desde la misma IP de
+    TestClient."""
+    from app.security.rate_limit import chat_rate_limiter, login_rate_limiter
+
+    login_rate_limiter._by_ip.clear()
+    chat_rate_limiter._by_ip.clear()
+    yield
+    login_rate_limiter._by_ip.clear()
+    chat_rate_limiter._by_ip.clear()
 
 
 @pytest.fixture()

@@ -1,7 +1,8 @@
 "use strict";
 
 import { WakeWordEngine } from "/shared/wake-word.js";
-import { renderMarkdown } from "/shared/markdown.js";
+import { escapeHtml, renderMarkdown } from "/shared/markdown.js";
+import { isPushSubscribed, subscribePush, unsubscribePush } from "/shared/push.js";
 
 /* ---------- Config / estado ---------- */
 
@@ -73,6 +74,15 @@ loginForm.addEventListener("submit", async (event) => {
 });
 
 function logout() {
+  // Revoca el token en el backend antes de descartarlo localmente (mismo
+  // criterio que dashboard/app.js) — best-effort, no bloquea el logout
+  // local si falla.
+  if (TOKEN) {
+    fetch(`${API_URL}/api/v1/auth/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${TOKEN}` },
+    }).catch(() => {});
+  }
   TOKEN = null;
   localStorage.removeItem("atlas_token");
   appScreen.classList.add("hidden");
@@ -380,6 +390,33 @@ shazamButton.addEventListener("click", async () => {
   }
 });
 
+function appendSongCard(result) {
+  // AudD se pide con `return: spotify` (ver app/integrations/audd.py) — su
+  // propio song_link es un smart-link (lis.tn/...) sin miniatura asociada;
+  // cover_url sale de la metadata real de Spotify que ya viene en la misma
+  // respuesta. Sin cover_url (canción no encontrada en el catálogo de
+  // Spotify, poco común) cae al texto plano de siempre.
+  const label = result.album ? `${result.title} — ${result.artist} (${result.album})` : `${result.title} — ${result.artist}`;
+  const link = result.track_url || result.song_link;
+
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble atlas";
+
+  if (result.cover_url && link) {
+    bubble.innerHTML =
+      `<a class="chat-link-card" href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">` +
+      `<span class="thumb"><img src="${escapeHtml(result.cover_url)}" alt="" loading="lazy">` +
+      `<span class="play-badge">🎵</span></span>` +
+      `<span class="chat-link-card-label">${escapeHtml(label)}</span>` +
+      `</a>`;
+  } else {
+    bubble.innerHTML = renderMarkdown(link ? `🎵 ${label}\n${link}` : `🎵 ${label}`);
+  }
+
+  chatLog.appendChild(bubble);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
 async function identifySong(blob) {
   const form = new FormData();
   form.append("audio", blob, "audio.webm");
@@ -388,10 +425,7 @@ async function identifySong(blob) {
     if (!result.found) {
       appendBubble("atlas", "No reconocí ninguna canción — probá de nuevo con más volumen.");
     } else {
-      let reply = `🎵 ${result.title} — ${result.artist}`;
-      if (result.album) reply += ` (${result.album})`;
-      if (result.song_link) reply += `\n${result.song_link}`;
-      appendBubble("atlas", reply);
+      appendSongCard(result);
     }
   } catch (err) {
     appendBubble("atlas", `(error reconociendo la canción: ${err.message})`);
@@ -510,6 +544,33 @@ async function loadNotifications() {
   }
 }
 document.getElementById("refresh-notifications").addEventListener("click", loadNotifications);
+
+/* ---------- Push notifications (Fase 22) ---------- */
+
+async function refreshPushButton() {
+  const button = document.getElementById("toggle-push");
+  const subscribed = await isPushSubscribed().catch(() => false);
+  button.textContent = subscribed ? "🔕 Desactivar notificaciones push" : "🔔 Activar notificaciones push";
+  button.dataset.subscribed = subscribed ? "1" : "0";
+}
+
+document.getElementById("toggle-push").addEventListener("click", async (event) => {
+  const button = event.target;
+  button.disabled = true;
+  try {
+    if (button.dataset.subscribed === "1") {
+      await unsubscribePush(api);
+    } else {
+      await subscribePush(api);
+    }
+  } catch (err) {
+    alert(err.message); // notificaciones son "extra": un alert basta, no interrumpe el resto de la app
+  } finally {
+    button.disabled = false;
+    refreshPushButton();
+  }
+});
+refreshPushButton();
 
 /* ---------- Memoria ---------- */
 

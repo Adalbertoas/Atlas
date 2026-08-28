@@ -99,9 +99,11 @@ def test_notification_message_is_readable(db_session):
     assert _format_message(event) == "Recordatorio: sacar la basura"
 
 
-def test_late_column_migration_runs(db_session):
-    """La columna `notified` se agregó después de que la base ya existía;
-    create_all no toca tablas existentes, así que hay un parche en init_db."""
-    from app.core.database import _LATE_COLUMNS
-
-    assert ("reminders", "notified", "BOOLEAN NOT NULL DEFAULT 0") in _LATE_COLUMNS
+def test_notified_column_is_mapped_on_the_model():
+    """`notified` se agregó al modelo Reminder después de que la base ya
+    existía en instalaciones viejas. Antes había que mantenerla a mano
+    también en `app.core.database._LATE_COLUMNS` (create_all no altera
+    tablas existentes); ahora de eso se encarga la migración baseline de
+    Alembic (ver tests/test_database.py), y acá alcanza con confirmar que
+    sigue siendo parte del modelo — la fuente de verdad real."""
+    assert "notified" in Reminder.__table__.columns

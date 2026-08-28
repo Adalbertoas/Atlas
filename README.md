@@ -3,6 +3,290 @@
 Asistente personal de inteligencia — un sistema modular tipo JARVIS, construido
 desde cero, original, no un chatbot.
 
+**Fase 29 (Migraciones formales con Alembic + streaming de chat + varias mejoras de robustez):**
+- **Alembic reemplaza `Base.metadata.create_all()` + el parche manual de
+  columnas tardías** (`app/core/database.py`). Ya llevaba dos parches de ese
+  tipo (`reminders.notified`, `memory_entries.embedding`) — cada uno una
+  forma más de romper una base existente si alguien se olvidaba de
+  escribirlo. `init_db()` ahora corre `alembic upgrade head`, que crea la
+  base desde cero *o* la evoluciona si ya existe, con la misma operación.
+  Caso especial: una base creada antes de este cambio (cualquier `atlas.db`
+  de una instalación existente) ya tiene todas las tablas pero no la de
+  control de Alembic — se detecta y se marca (`stamp head`) en vez de
+  intentar recrearlas. Migración baseline en `migrations/versions/`.
+  - Bug real encontrado al probarlo: con SQLite `:memory:` (la base que usan
+    los tests), Alembic abría su propia conexión nueva para migrar — y una
+    base en memoria vive solo en la conexión que la creó, así que el motor
+    real de la app se quedaba sin tablas. Se resolvió pasándole el `Engine`
+    real de la app a Alembic (`config.attributes["connection"]`) en vez de
+    dejar que arme uno nuevo a partir de la URL.
+  - 4 tests nuevos (`tests/test_database.py`): base nueva, dos corridas
+    seguidas (idempotencia), base pre-Alembic (stamp), base ya migrada
+    (upgrade).
+- **Streaming de respuestas** (`POST /api/v1/chat/stream`, Server-Sent
+  Events): el dashboard ya no espera la respuesta completa — el texto
+  aparece a medida que Claude lo genera, y un evento `tool_call` avisa
+  "usando `<tool>`..." mientras corre una herramienta (clima, búsqueda web,
+  etc.), en vez del silencio de antes. `AIProvider.chat_stream()` nuevo
+  (`app/ai/base.py`), con streaming real en `AnthropicProvider` (vía
+  `client.messages.stream()`) y fallback automático a la respuesta completa
+  para `MockProvider`. El Orchestrator ganó `handle_message_stream`,
+  compartiendo con la versión síncrona los mismos helpers de evaluación y
+  ejecución de tools (`_evaluate_tool_calls`/`_execute_resolved_calls`) para
+  que ambas versiones no puedan divergir en qué se ejecuta solo y qué pide
+  confirmación.
+  - Bug real encontrado al probarlo: una sesión de DB inyectada por
+    `Depends()` se cierra apenas el endpoint retorna el `StreamingResponse`,
+    antes de que el generador la termine de usar — rompía con "no such
+    table" recién al testear. Se resolvió resolviendo `get_db_session` a
+    mano desde `request.app.dependency_overrides` (mismo mecanismo que usa
+    FastAPI puertas adentro), para no perder el override que usan los tests.
+- **El Orchestrator resuelve todos los `tool_calls` de un turno**, no solo
+  el primero — antes, si el modelo pedía varias tools de una, el resto del
+  lote se perdía sin ejecutarse. Si alguna del lote necesita confirmación,
+  no se ejecuta ninguna (todo o nada por turno, mismo criterio que ya regía
+  para un solo call). Requirió que `AnthropicProvider` agrupe varios
+  `tool_result` en un único turno "user" — Anthropic rechaza turnos "user"
+  consecutivos.
+- **Historial de conversación acotado por tokens estimados**, no por
+  cantidad de mensajes — 20 mensajes cortos no pesan lo mismo que 20 largos.
+- **Revocación de JWT** (`POST /auth/logout`): antes cerrar sesión solo
+  borraba el token del `localStorage`; uno filtrado seguía sirviendo hasta
+  que expirara solo (24h por defecto). Estado en memoria de proceso, mismo
+  criterio que `login_rate_limiter`/`permission_manager`.
+- **Rate limiting en `/chat`** (30 req/min por IP) — antes solo
+  `/auth/login` lo tenía.
+- Los errores del `AIProvider` ya no filtran el detalle de la excepción al
+  usuario (solo al log) — podía traer texto interno del proveedor sin
+  aportarle nada a quien lo lee.
+- **Miniaturas reales para Shazam** (`/api/v1/music/identify`): se pedía
+  `return=spotify` a AudD pero solo se usaba su `song_link` (un smart-link
+  sin imagen asociada) — se aprovecha la metadata real que ya venía en la
+  respuesta. Orden de fuentes: Spotify → Apple Music → YouTube (búsqueda por
+  "artista + título", solo si las dos anteriores no tuvieron match) → texto
+  plano si ninguna la tiene. 6 tests nuevos.
+- CORS quedó **sin cambios a propósito**: se evaluó restringirlo, pero el
+  auth es por header Bearer (no cookies) — un origen ajeno no tiene el token
+  para explotar el wildcard, y restringir por origen fijo habría roto el
+  acceso por IP de LAN (que cambia según la red). La justificación original
+  del código sigue siendo correcta.
+- **Primer smoke test E2E** (`dashboard/tests_e2e/`, Playwright): hasta acá
+  los ~300 tests de `backend/tests/` prueban la API a fondo, pero ninguno
+  ejecuta el JavaScript del dashboard en un navegador real. Backend y
+  servidor estático se levantan dentro del propio proceso de test (uvicorn
+  y `http.server` en threads, puerto dinámico) en vez de como subprocesos —
+  sin eso, sin querer, se termina reproduciendo el mismo bug de sockets
+  huérfanos de Windows que ya documentó este README (Fase 16). Cubre login,
+  el chat de punta a punta contra `/chat/stream` (primera vez que el
+  streaming se prueba en un navegador real, no solo vía `TestClient`/`curl`),
+  la vista de Dispositivos y logout. Ver `dashboard/tests_e2e/README.md`
+  para cómo correrlo — no está en el CI todavía (`.github/workflows/`), a
+  propósito: agregar un browser real ahí es una decisión aparte.
+- 39 tests nuevos en total (299 → ~303 en `backend/tests/`, + 5 en
+  `dashboard/tests_e2e/`).
+
+**Fase 20 (Búsqueda semántica de memoria):**
+- `app/embeddings/`: `EmbeddingProvider` desacoplado, mismo patrón que
+  `AIProvider`/`VoiceProvider`/`SmartHomeProvider`. `FastEmbedProvider`
+  (real, `EMBEDDING_PROVIDER=fastembed`) usa el modelo local
+  `all-MiniLM-L6-v2` vía `fastembed` (ONNX, ~90MB, gratis, sin API key, sin
+  mandar nada a internet una vez descargado) en vez de
+  `sentence-transformers`, que arrastra PyTorch completo solo para correr
+  el mismo tipo de modelo chico. `MockEmbeddingProvider` (default,
+  determinístico por hash de palabras) evita que tests/desarrollo rápido
+  necesiten el modelo instalado.
+- `MemoryEntry` gana una columna `embedding` (JSON, nullable) — nullable a
+  propósito: las memorias creadas antes de este cambio quedan sin vector
+  hasta correr `scripts/backfill_memory_embeddings.py`, y mientras tanto
+  siguen siendo encontrables por el fallback de texto.
+- `search_memories()` pasa a ser híbrida: LIKE (determinístico, se
+  prioriza) + similitud de coseno contra el embedding de la consulta,
+  calculada en Python puro sobre las entradas en SQLite — sin sqlite-vec ni
+  vector DB aparte, coherente con el volumen real de una memoria personal
+  (cientos de entradas, no millones) y con el resto del proyecto
+  ("SQLite en vez de Postgres, sin Docker"). Si el volumen crece, el punto
+  de upgrade documentado es sqlite-vec.
+- Si el `EmbeddingProvider` falla al guardar una memoria, no rompe
+  `create_memory`: la memoria se guarda igual, sin vector, y sigue siendo
+  encontrable por texto.
+
+**Fase 21 (Google Calendar):**
+- `app/integrations/google_calendar.py`: OAuth2 "instalada" (flujo
+  loopback) vía `requests` puro, sin el SDK oficial
+  (`google-api-python-client`) — mismo criterio que
+  `home_assistant_provider.py`: llamadas REST simples no justifican una
+  dependencia pesada. `GoogleCalendarClient` cachea el access_token en
+  memoria del proceso (dura ~1h) y lo renueva con el refresh_token, que no
+  expira.
+- Dos tools nuevas (`app/tools/calendar/`): `list_calendar_events`
+  (READ_ONLY) y `create_calendar_event` (LOW_RISK, mismo criterio que
+  `create_reminder`: escribe en un servicio externo real pero no tiene
+  consecuencias irreversibles en el mundo físico, así que no exige
+  confirmación). Distinto de un recordatorio a propósito: un evento de
+  calendario queda visible en Google Calendar y cualquier app que lo
+  sincronice; un recordatorio solo vive en ATLAS.
+- `scripts/google_calendar_setup.py`: hace el paso que no se puede
+  automatizar del todo — la pantalla de consentimiento del navegador.
+  Levanta un servidor local temporal en `localhost:8765` para recibir el
+  código de autorización del redirect, lo cambia por un `refresh_token` y
+  dice qué pegar en `.env`. Mismo espíritu que `scripts/tuya_setup.py`:
+  resolver la parte más molesta de configurar la integración.
+- Sin `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REFRESH_TOKEN`
+  configurados, las tools devuelven un error explicando qué falta (mismo
+  criterio que YouTube/Spotify/AudD) en vez de romper el resto de ATLAS.
+- 9 tests nuevos, mockeando `requests` — no pegan a la API real de Google.
+
+**Fase 22 (Push notifications reales):**
+- `app/notifications/`: nueva tabla `PushSubscription` (una fila por
+  navegador/dispositivo suscripto — el mismo usuario puede tener el celular
+  y el dashboard suscriptos a la vez). `send_web_push()` se cuelga del mismo
+  subscriber de `NOTIFICATION_CREATED` que ya persistía en `Notification`
+  (Fase 7): la notificación "en la app" no desaparece, Web Push se suma
+  para avisar aunque la app esté cerrada.
+- Web Push real vía `pywebpush` + claves VAPID (RFC 8292) — no depende de
+  ninguna cuenta externa, a diferencia de Google Calendar/Tuya: el par de
+  claves se genera una sola vez con `scripts/generate_vapid_keys.py`
+  (EC P-256 vía `cryptography`, ya una dependencia del proyecto).
+- Endpoints nuevos: `GET /notifications/push/public-key`,
+  `POST`/`DELETE /notifications/push/subscribe`.
+- `shared/push.js` + `shared/push-sw.js` (compartidos entre `mobile/` y
+  `dashboard/`, mismo criterio que `wake-word.js`): manejan el permiso del
+  navegador, la suscripción (`PushManager.subscribe`) y la notificación
+  visual (`showNotification` dentro del service worker). `dashboard/`
+  no tenía service worker — se agregó `dashboard/sw.js` solo para esto, sin
+  cachear el shell (a propósito: el dashboard no es una PWA instalable).
+- Suscripción muerta (navegador desinstalado, datos borrados): el servicio
+  push devuelve 404/410, y `send_web_push()` borra esa fila en vez de
+  seguir intentando mandarle para siempre. Cualquier otro error (falla
+  transitoria del servicio push) no borra la suscripción.
+- Ya no depende de exponer la red local sin HTTPS: la Fase 16 dejó
+  `certs/dev-cert.pem` como requisito para cámara/micrófono, y ese mismo
+  contexto seguro es el que ahora también habilita `PushManager.subscribe()`.
+- 11 tests nuevos, mockeando `pywebpush.webpush` — no le pegan a ningún
+  servicio push real.
+
+**Fase 23 (Gmail):**
+- `app/integrations/gmail.py`: mismo criterio que `google_calendar.py`
+  (`requests` puro, sin SDK) y **la misma cuenta/credenciales** —
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_REFRESH_TOKEN` ya
+  configurados para Calendar sirven para Gmail también, siempre que el
+  refresh_token incluya el scope nuevo (ver abajo).
+- Dos tools (`app/tools/gmail/`): `list_unread_emails` (READ_ONLY) y
+  `send_email` (**MEDIUM_RISK**, a diferencia de `create_calendar_event`:
+  mandar un correo es una acción hacia un tercero e irreversible, no algo
+  que solo queda en herramientas propias del usuario — mismo nivel que
+  `close_application`, pide confirmación antes de ejecutarse).
+- Scopes mínimos a propósito: `gmail.readonly` + `gmail.send`, no
+  `gmail.modify`/`gmail.full` — las tools no necesitan borrar ni archivar
+  correo, y pedir de menos es más fácil de justificar en la pantalla de
+  consentimiento.
+- `scripts/google_calendar_setup.py` ahora pide los scopes de Calendar y
+  Gmail **en la misma pasada**: un solo refresh_token cubre ambas
+  integraciones. Si el refresh_token ya existía de la Fase 21 (Calendar
+  solo), hay que volver a correr el script — el token viejo no tiene el
+  scope de Gmail y las tools fallan con `GmailNotConfigured` hasta
+  reemplazarlo.
+- 9 tests nuevos, mockeando `requests`.
+
+**Fase 24 (Mapas/tráfico):**
+- `app/integrations/maps.py`: Nominatim (geocoding) + OSRM (ruteo) —
+  OpenStreetMap, gratis y **sin API key ni cuenta**, mismo criterio que
+  Open-Meteo (clima) y DuckDuckGo (búsqueda web). Se prefirió explícitamente
+  a Google Maps Distance Matrix, que exige habilitar facturación en Google
+  Cloud aunque el uso caiga dentro del crédito gratis.
+- Tool `get_travel_time` (READ_ONLY): distancia y tiempo estimado en auto
+  entre dos lugares.
+- **Limitación real, no escondida**: los servidores públicos de OSRM no dan
+  tráfico en tiempo real, solo velocidad promedio por tipo de vía — la
+  respuesta aclara "estimado, sin tráfico en tiempo real" en vez de fingir
+  precisión que no tiene (mismo criterio que la Fase 11 con la temperatura
+  de CPU: sin el dato real, no se inventa uno).
+- Verificado en vivo contra los servidores reales (no mockeados): Santo
+  Domingo → Santiago, 155.2 km, ~122 min.
+- 8 tests nuevos, mockeando `requests`.
+
+**Fase 25 (Rate limiting de login):**
+- `app/security/rate_limit.py`: `LoginRateLimiter`, mismo patrón que
+  `PermissionManager` (estado en memoria de proceso — para un solo usuario
+  en un solo proceso alcanza, escalar a múltiples workers pediría Redis).
+  Bloquea por IP tras `LOGIN_MAX_ATTEMPTS` fallos seguidos (5 por defecto),
+  por `LOGIN_LOCKOUT_SECONDS` (900 = 15 min).
+- Hueco real que cerraba: desde que existen clientes remotos (móvil,
+  dashboard por red), cualquiera con acceso a la WiFi podía probar
+  `ATLAS_PASSWORD` sin límite — `/auth/login` no tenía ningún freno. No es
+  2FA ni reemplaza una contraseña fuerte, pero convierte un ataque de
+  fuerza bruta práctico en uno que tardaría años.
+- Un login correcto limpia el historial de fallos de esa IP — no tiene
+  sentido seguir penalizando al dueño real de la cuenta por intentos viejos.
+  `429` con header `Retry-After` mientras está bloqueada.
+- 11 tests nuevos. Trampa encontrada al escribirlos: el rate limiter es un
+  singleton de proceso — sin resetear su estado entre tests, un test que
+  agota los intentos dejaba la IP de prueba bloqueada 15 minutos reales
+  para *todos* los tests que corrieran después (`auth_headers`, que usan
+  casi todos, hace login). Se resolvió con un fixture `autouse` en
+  `conftest.py` que lo limpia antes y después de cada test.
+
+**Fase 26 (Backups automáticos de la base de datos):**
+- `app/core/backup.py`: usa `sqlite3.Connection.backup()` (API online de
+  SQLite) en vez de copiar el archivo a mano — una copia cruda mientras hay
+  escrituras en curso puede capturar un estado a medio escribir y quedar
+  corrupta; el backup online es seguro con la base en uso.
+- `BackupScheduler`: mismo patrón que `ReminderScheduler`/
+  `AutomationScheduler` (tarea en background del propio proceso). Un
+  backup al arrancar + uno cada `BACKUP_INTERVAL_HOURS` (24 por defecto)
+  mientras el proceso sigue corriendo — el arranque es necesario porque
+  ATLAS no es un servidor 24/7, es un asistente de escritorio que se
+  prende y apaga con el uso.
+- Rotación simple: se conservan los `BACKUP_KEEP_COUNT` más recientes (7
+  por defecto), se borran los más viejos.
+- Solo aplica a SQLite (`DATABASE_URL` por defecto). Si el proyecto migra a
+  PostgreSQL, se avisa por log en vez de fallar en silencio o fingir que
+  hizo un backup que no hizo — mismo criterio que la temperatura de CPU en
+  la Fase 11.
+- 4 tests nuevos, con una base SQLite real en un directorio temporal (no
+  tocan `backend/atlas.db`). Bug encontrado escribiéndolos: el nombre del
+  archivo de backup solo tenía resolución de segundo — dos backups en el
+  mismo segundo se pisaban entre sí. Se agregaron microsegundos al timestamp.
+
+**Fase 27 (CI):**
+- `.github/workflows/backend-tests.yml`: corre los 263+ tests del backend
+  en cada push/PR que toque `backend/`. No existía ningún CI — con esa
+  cantidad de tests ya escritos, la parte más barata de aprovecharlos
+  (correrlos solos) era justo la que faltaba.
+- Runner `windows-latest`, no Ubuntu: el proyecto importa `pyautogui`
+  (control de mouse por gestos) a nivel de módulo, sin diferir — eso rompe
+  la importación completa de la app en un runner Linux sin servidor X.
+  Coincide además con la plataforma real del proyecto (WMI, voces SAPI).
+- Sin secretos ni credenciales: `AI_PROVIDER`/`STT_PROVIDER`/etc. ya caen en
+  `mock` por defecto y `conftest.py` fuerza vacías las credenciales de
+  integraciones externas — el único valor que hace falta fijar es
+  `ATLAS_PASSWORD`, hardcodeado como `test-password` en el workflow (no es
+  secreto real, es la misma contraseña de prueba que ya usa `conftest.py`).
+
+**Fase 28 (Límite de gasto en la API de Anthropic):**
+- `app/core/usage.py`: tabla `ApiUsage` (una fila por llamada real a Claude,
+  con tokens y costo estimado) + `check_budget()`, que el Orchestrator
+  consulta **antes de cada llamada** al `AIProvider` — no solo al principio
+  del turno: un loop de tool calling insistente (`MAX_TOOL_ITERATIONS`)
+  también gasta, y el freno tiene que poder cortarlo a mitad de turno.
+- El costo es una **estimación por tabla de precios** (`opus`/`sonnet`/
+  `haiku`, USD por millón de tokens), no la factura real de Anthropic —
+  documentado como tal en el propio código, mismo criterio que la
+  temperatura de CPU en la Fase 11: mejor una estimación aproximada y
+  etiquetada que fingir precisión que no se tiene.
+- `ANTHROPIC_DAILY_BUDGET_USD` (5 por defecto) y `ANTHROPIC_MONTHLY_BUDGET_USD`
+  (0 = sin tope) en `.env`. Al superarse, el Orchestrator devuelve un
+  mensaje explicando el límite en vez de llamar a la API — no rompe con un
+  500, se comporta como una respuesta más.
+- `MockProvider` no cuenta: `AIResponse.input_tokens`/`output_tokens` quedan
+  en 0 salvo que el proveedor real (`AnthropicProvider`, vía
+  `response.usage`) los complete — nada que medir sin pegarle a la API
+  real, mismo espíritu que el resto de los mocks del proyecto.
+- 9 tests nuevos, incluida una integración completa con el Orchestrator
+  (un `AIProvider` de prueba que cuenta cuántas veces se lo llamó, para
+  verificar que el límite corta la llamada *antes* de que ocurra, no
+  después).
+
 Estado actual: **las 9 fases del prompt maestro están completas** (núcleo,
 memoria/personalidad/Event Bus, voz + wake word, control de Windows +
 cliente de escritorio, Smart Home, Automation Engine, login + app móvil
@@ -698,8 +982,6 @@ Las 9 fases del prompt maestro están completas, más el control por gestos
 (fuera del prompt original, agregado a pedido — ver arriba). Lo que queda
 documentado como pendiente, no implementado a medias:
 
-- Push real (Web Push/VAPID) para notificaciones — hoy son "en la app", no
-  push del sistema operativo; requeriría HTTPS.
 - Acceso remoto real (fuera de la WiFi de casa) — hoy la PWA solo funciona
   en la misma red local que el backend.
 - Más cobertura de tool calling (hoy se resuelve un tool_call a la vez;

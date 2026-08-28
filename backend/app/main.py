@@ -9,6 +9,7 @@ from app.api.v1.router import api_router
 from app.automation.engine import register_device_state_triggers
 from app.automation.scheduler import AutomationScheduler
 from app.config import get_settings
+from app.core.backup import BackupScheduler
 from app.core.database import init_db
 from app.core.logging import configure_logging
 from app.events.bus import event_bus, register_default_subscribers
@@ -32,11 +33,14 @@ async def lifespan(app: FastAPI):
     # avisaban al vencer — y un recordatorio que no interrumpe no sirve.
     reminders = ReminderScheduler(event_bus)
     reminders.start()
+    backups = BackupScheduler()
+    backups.start()
     try:
         yield
     finally:
         await scheduler.stop()
         await reminders.stop()
+        await backups.stop()
 
 
 def create_app() -> FastAPI:

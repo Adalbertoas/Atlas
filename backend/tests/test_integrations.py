@@ -242,6 +242,117 @@ def test_identify_song_returns_match():
     assert match.title == "Bohemian Rhapsody"
 
 
+def test_identify_song_extracts_spotify_cover_and_link():
+    """AudD se pide con `return: spotify` — hasta que esto se agregó, esa
+    metadata se descartaba entera salvo por song_link (el smart-link propio
+    de AudD, que no trae ninguna miniatura asociada)."""
+    response = _mock_response(
+        {
+            "status": "success",
+            "result": {
+                "artist": "Queen",
+                "title": "Bohemian Rhapsody",
+                "album": "A Night at the Opera",
+                "song_link": "https://lis.tn/BohemianRhapsody",
+                "spotify": {
+                    "external_urls": {"spotify": "https://open.spotify.com/track/abc123"},
+                    "album": {
+                        "images": [
+                            {"url": "https://i.scdn.co/image/large.jpg", "height": 640, "width": 640},
+                            {"url": "https://i.scdn.co/image/small.jpg", "height": 64, "width": 64},
+                        ]
+                    },
+                },
+            },
+        }
+    )
+
+    with patch("requests.post", return_value=response):
+        match = identify_song(b"fake-audio-bytes", api_token="fake-token")
+
+    assert match.cover_url == "https://i.scdn.co/image/large.jpg"
+    assert match.track_url == "https://open.spotify.com/track/abc123"
+
+
+def test_identify_song_falls_back_to_apple_music_when_no_spotify_match():
+    """Caso real encontrado en vivo: "Siempre Estoy Pensando en Ella" de
+    Gramatiko no tuvo match en el catálogo de Spotify de AudD, pero sí en el
+    de Apple Music — sin este fallback, la tarjeta se quedaba sin miniatura
+    aunque AudD sí tenía una portada para ofrecer."""
+    response = _mock_response(
+        {
+            "status": "success",
+            "result": {
+                "artist": "Gramatiko",
+                "title": "Siempre Estoy Pensando en Ella",
+                "album": "Siempre Estoy Pensando en Ella",
+                "song_link": "https://lis.tn/MVTCb",
+                "apple_music": {
+                    "url": "https://music.apple.com/us/album/siempre-estoy-pensando-en-ella/123",
+                    "artwork": {
+                        "url": "https://is2-ssl.mzstatic.com/image/thumb/abc/{w}x{h}bb.jpeg",
+                        "width": 3000,
+                        "height": 3000,
+                    },
+                },
+            },
+        }
+    )
+
+    with patch("requests.post", return_value=response):
+        match = identify_song(b"fake-audio-bytes", api_token="fake-token")
+
+    assert match.cover_url == "https://is2-ssl.mzstatic.com/image/thumb/abc/600x600bb.jpeg"
+    assert match.track_url == "https://music.apple.com/us/album/siempre-estoy-pensando-en-ella/123"
+
+
+def test_identify_song_prefers_spotify_over_apple_music_when_both_present():
+    response = _mock_response(
+        {
+            "status": "success",
+            "result": {
+                "artist": "Queen",
+                "title": "Bohemian Rhapsody",
+                "album": None,
+                "song_link": None,
+                "spotify": {
+                    "external_urls": {"spotify": "https://open.spotify.com/track/abc123"},
+                    "album": {"images": [{"url": "https://i.scdn.co/image/large.jpg"}]},
+                },
+                "apple_music": {
+                    "url": "https://music.apple.com/us/album/x/1",
+                    "artwork": {"url": "https://is2-ssl.mzstatic.com/x/{w}x{h}bb.jpeg"},
+                },
+            },
+        }
+    )
+
+    with patch("requests.post", return_value=response):
+        match = identify_song(b"fake-audio-bytes", api_token="fake-token")
+
+    assert match.cover_url == "https://i.scdn.co/image/large.jpg"
+    assert match.track_url == "https://open.spotify.com/track/abc123"
+
+
+def test_identify_song_handles_missing_spotify_metadata():
+    """No toda canción reconocida por huella de audio está en el catálogo de
+    Spotify NI en el de Apple Music (temas muy nuevos o poco distribuidos) —
+    sin ninguno de los dos bloques, el match se sigue devolviendo igual,
+    solo que sin portada."""
+    response = _mock_response(
+        {
+            "status": "success",
+            "result": {"artist": "Alguien", "title": "Tema raro", "album": None, "song_link": None},
+        }
+    )
+
+    with patch("requests.post", return_value=response):
+        match = identify_song(b"fake-audio-bytes", api_token="fake-token")
+
+    assert match.cover_url is None
+    assert match.track_url is None
+
+
 def test_identify_song_returns_none_when_no_match():
     response = _mock_response({"status": "success", "result": None})
 

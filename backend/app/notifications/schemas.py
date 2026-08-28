@@ -12,3 +12,17 @@ class NotificationOut(BaseModel):
     message: str
     read: bool
     created_at: datetime
+
+
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionIn(BaseModel):
+    """Forma exacta que devuelve PushSubscription.toJSON() en el navegador —
+    se recibe tal cual, sin transformarla, para no depender de que el
+    cliente arme un payload distinto."""
+
+    endpoint: str
+    keys: PushSubscriptionKeys

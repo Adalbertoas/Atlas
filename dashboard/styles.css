@@ -31,6 +31,14 @@
   --radius-sm: 10px;
   --sidebar-w: 232px;
   --listen-h: 74px;
+
+  /* Inter para todo el cuerpo: más pulida que la pila de sistema, con
+     buen soporte de números tabulares para métricas. Space Grotesk queda
+     reservada para marca/títulos — su geometría angulosa combina con los
+     iconos de trazo recto del sprite. Si el CDN de fuentes no carga, cae
+     a la misma pila de sistema de antes. */
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -41,8 +49,11 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-body);
   font-size: 14px;
+  font-feature-settings: "cv11", "ss01", "tnum";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   overflow: hidden;
 }
 
@@ -88,9 +99,10 @@ svg use, .svg-defs symbol > * {
 .login-mark svg { width: 60px; height: 60px; filter: drop-shadow(0 0 14px var(--accent-glow)); }
 
 .logo {
-  font-size: 2rem;
+  font-family: var(--font-display);
+  font-size: 2.1rem;
   font-weight: 700;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.2em;
   color: var(--text);
 }
 
@@ -163,7 +175,7 @@ svg use, .svg-defs symbol > * {
 }
 .brand-mark { color: var(--accent); display: flex; }
 .brand-mark svg { width: 28px; height: 28px; filter: drop-shadow(0 0 8px var(--accent-glow)); }
-.brand-name { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.16em; }
+.brand-name { font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; letter-spacing: 0.14em; }
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; }
 
@@ -244,7 +256,7 @@ svg use, .svg-defs symbol > * {
   justify-content: space-between;
   padding: 16px 22px 12px;
 }
-.top-title h1 { margin: 0; font-size: 1.35rem; font-weight: 600; letter-spacing: 0.02em; }
+.top-title h1 { margin: 0; font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; letter-spacing: 0.01em; }
 .top-title p { margin: 2px 0 0; font-size: 0.78rem; color: var(--text-faint); }
 .top-actions { display: flex; gap: 8px; align-items: center; }
 
@@ -297,6 +309,17 @@ svg use, .svg-defs symbol > * {
 
 .view { display: none; }
 .view.active { display: block; }
+
+#toggle-push {
+  display: block;
+  margin-bottom: 14px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-dim);
+  cursor: pointer;
+}
 /* El inicio ocupa todo el alto para que la grilla pueda repartir el sobrante.
    Flex y no `min-height:100%` en la grilla: dentro de un contenedor con
    scroll, ese porcentaje se resuelve contra un padre de alto automático y
@@ -424,7 +447,7 @@ svg use, .svg-defs symbol > * {
 }
 .orb.listening .orb-mark svg { transform: scale(1.12); }
 
-.greeting { margin: 6px 0 2px; font-size: 1.5rem; font-weight: 600; }
+.greeting { margin: 6px 0 2px; font-family: var(--font-display); font-size: 1.55rem; font-weight: 600; }
 .greeting-sub { margin: 0 0 16px; color: var(--text-dim); font-size: 0.9rem; }
 
 .hero-input {
@@ -962,6 +985,22 @@ svg use, .svg-defs symbol > * {
 .chat-bubble.user { align-self: flex-end; background: var(--accent); color: #04141a; border-bottom-right-radius: 4px; }
 .chat-bubble.atlas { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 
+/* Indicador de tool en curso durante el streaming (clima, búsqueda web,
+   etc.) — antes era silencio puro entre el "escribiendo…" inicial y la
+   respuesta final; ahora se ve qué está haciendo ATLAS mientras corre. */
+.chat-tool-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  color: var(--text-faint);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+.chat-tool-hint .i { width: 14px; height: 14px; color: var(--accent); }
+
 /* Burbuja de "ATLAS está pensando/buscando" mientras se espera la
    respuesta — mismo criterio visual que Claude/ChatGPT: tres puntos
    que rebotan, para que quede claro que el mensaje sí se mandó y el
@@ -1016,20 +1055,78 @@ svg use, .svg-defs symbol > * {
    "buscá X en YouTube" muestre algo más que una URL pelada. */
 .chat-link-card {
   display: block;
+  position: relative;
   margin: 6px 0;
   max-width: 240px;
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
   background: var(--bg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.chat-link-card:hover { text-decoration: none !important; border-color: var(--accent); }
-.chat-link-card img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--bg); }
+.chat-link-card:hover {
+  text-decoration: none !important;
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--accent-line);
+}
+.chat-link-card .thumb {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: var(--panel);
+}
+.chat-link-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--bg);
+  transition: transform 0.35s ease;
+}
+.chat-link-card:hover img { transform: scale(1.06); }
+/* Botón de play superpuesto — sin esto la miniatura es indistinguible de
+   una imagen suelta; este detalle es lo que la lee como "video". */
+.chat-link-card .thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 55%, rgba(2, 6, 11, 0.75));
+}
+.chat-link-card .play-badge {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(6, 10, 16, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0.9;
+  transition: opacity 0.18s ease, background 0.18s ease;
+}
+.chat-link-card:hover .play-badge { background: var(--accent); color: #04141a; opacity: 1; }
+/* El triángulo de YouTube es un <svg> inline sin el sprite (necesita relleno
+   sólido); los íconos del sprite (ej. la notita de una tarjeta de canción)
+   ya traen su propia clase ".i" con trazo, no relleno — :not(.i) evita que
+   este relleno forzado los pise y los deje irreconocibles. */
+.chat-link-card .play-badge svg:not(.i) { width: 15px; height: 15px; margin-left: 2px; fill: currentColor; }
+.chat-link-card .play-badge svg.i { width: 16px; height: 16px; }
 .chat-link-card-label {
   display: block;
-  padding: 6px 10px;
+  padding: 8px 11px;
   font-size: 0.78rem;
-  color: var(--text-dim);
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-bubble.atlas code {

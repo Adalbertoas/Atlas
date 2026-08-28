@@ -7,11 +7,12 @@ aporte su propia key sin cambiar esta clase.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import anthropic
 
-from app.ai.base import AIMessage, AIProvider, AIResponse, ToolCall, ToolSchema
+from app.ai.base import AIMessage, AIProvider, AIResponse, StreamEvent, ToolCall, ToolSchema
 
 _ROLE_MAP = {"user": "user", "assistant": "assistant"}
 
@@ -36,11 +37,11 @@ class AnthropicProvider(AIProvider):
             for t in tools
         ]
 
-    def chat(
-        self,
-        messages: list[AIMessage],
-        tools: list[ToolSchema] | None = None,
-    ) -> AIResponse:
+    def _build_kwargs(self, messages: list[AIMessage], tools: list[ToolSchema] | None) -> dict[str, Any]:
+        """Arma el payload de la Messages API a partir de los AIMessage
+        agnósticos de proveedor. Compartido por chat() y chat_stream() —
+        antes de que existiera streaming esta lógica vivía inline dentro de
+        chat(); separarla evita mantener dos copias que puedan divergir."""
         system_prompt = "\n".join(m.content for m in messages if m.role == "system")
 
         anthropic_messages: list[dict[str, Any]] = []
@@ -48,18 +49,24 @@ class AnthropicProvider(AIProvider):
             if m.role == "system":
                 continue
             if m.role == "tool":
-                anthropic_messages.append(
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": m.tool_call_id,
-                                "content": m.content,
-                            }
-                        ],
-                    }
-                )
+                tool_result = {
+                    "type": "tool_result",
+                    "tool_use_id": m.tool_call_id,
+                    "content": m.content,
+                }
+                # Cuando el Orchestrator resuelve varios tool_calls de un mismo
+                # turno del modelo, llegan acá como AIMessages "tool"
+                # consecutivos. Anthropic exige que todos sus tool_result
+                # viajen juntos en un único turno "user" — dos turnos "user"
+                # seguidos (uno por tool_result) violan la alternancia de
+                # roles que la API exige y la rechaza. Se detecta el turno
+                # anterior por su `content` en lista (los turnos "user" de
+                # texto normal lo llevan como string).
+                previous = anthropic_messages[-1] if anthropic_messages else None
+                if previous is not None and previous["role"] == "user" and isinstance(previous["content"], list):
+                    previous["content"].append(tool_result)
+                else:
+                    anthropic_messages.append({"role": "user", "content": [tool_result]})
             elif m.role == "assistant" and m.tool_calls:
                 # El turno del modelo que pidió la(s) tool(s): hay que reenviar
                 # el bloque tool_use tal cual, si no la API rechaza el
@@ -83,9 +90,11 @@ class AnthropicProvider(AIProvider):
         )
         if tools:
             kwargs["tools"] = self._to_anthropic_tools(tools)
+        return kwargs
 
-        response = self._client.messages.create(**kwargs)
-
+    def _parse_response(self, response: Any) -> AIResponse:
+        """Convierte un Message de Anthropic (de messages.create() o de
+        stream.get_final_message() — misma forma) al AIResponse agnóstico."""
         text_parts: list[str] = []
         tool_calls: list[ToolCall] = []
         for block in response.content:
@@ -94,4 +103,38 @@ class AnthropicProvider(AIProvider):
             elif block.type == "tool_use":
                 tool_calls.append(ToolCall(id=block.id, name=block.name, arguments=block.input))
 
-        return AIResponse(text="\n".join(text_parts) or None, tool_calls=tool_calls)
+        usage = response.usage
+        return AIResponse(
+            text="\n".join(text_parts) or None,
+            tool_calls=tool_calls,
+            input_tokens=usage.input_tokens if usage else 0,
+            output_tokens=usage.output_tokens if usage else 0,
+        )
+
+    def chat(
+        self,
+        messages: list[AIMessage],
+        tools: list[ToolSchema] | None = None,
+    ) -> AIResponse:
+        kwargs = self._build_kwargs(messages, tools)
+        response = self._client.messages.create(**kwargs)
+        return self._parse_response(response)
+
+    def chat_stream(
+        self,
+        messages: list[AIMessage],
+        tools: list[ToolSchema] | None = None,
+    ) -> Iterator[StreamEvent]:
+        """Streaming real vía el helper de alto nivel del SDK
+        (`client.messages.stream()`): `text_stream` entrega el texto a
+        medida que llega (nunca incluye tool_use, solo texto), y
+        `get_final_message()` devuelve el Message completo y ya acumulado
+        —incluidos los bloques tool_use, con su JSON parcial ya ensamblado
+        por el propio SDK— así que no hace falta reimplementar ese
+        ensamblado a mano acá."""
+        kwargs = self._build_kwargs(messages, tools)
+        with self._client.messages.stream(**kwargs) as stream:
+            for text in stream.text_stream:
+                yield StreamEvent(type="delta", text=text)
+            final_message = stream.get_final_message()
+        yield StreamEvent(type="final", response=self._parse_response(final_message))

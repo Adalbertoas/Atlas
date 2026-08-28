@@ -37,6 +37,18 @@ class SongMatch:
     title: str
     album: str | None
     song_link: str | None
+    # Portada real del álbum — sale de la metadata de Spotify que ya viene
+    # en la respuesta (se pide con `return: spotify`), pero hasta ahora se
+    # descartaba entera salvo por song_link. Sin esto, el link que se le
+    # mostraba al usuario era el smart-link propio de AudD (lis.tn/...), que
+    # no tiene ninguna miniatura asociada — ni el cliente puede armar una
+    # sin pegarle a una API por su cuenta.
+    cover_url: str | None = None
+    # Link directo al track (Spotify o, si ese catálogo no tuvo match, Apple
+    # Music) — más útil que song_link para armar una tarjeta: song_link es
+    # un redirect "elegí tu plataforma" pensado para compartir, no para
+    # enlazar directo. No se llama spotify_url porque puede no serlo.
+    track_url: str | None = None
 
 
 def identify_song(audio_bytes: bytes, api_token: str) -> SongMatch | None:
@@ -49,7 +61,13 @@ def identify_song(audio_bytes: bytes, api_token: str) -> SongMatch | None:
 
     response = requests.post(
         "https://api.audd.io/",
-        data={"api_token": api_token, "return": "spotify"},
+        # Se piden las dos fuentes a la vez: AudD reconoce la canción por su
+        # huella de audio, independiente de en qué catálogos aparece
+        # después — no es raro que un tema esté en uno y no en el otro
+        # (visto en vivo: "Siempre Estoy Pensando en Ella" de Gramatiko no
+        # tuvo match en Spotify pero sí en Apple Music). Pedir ambas cuesta
+        # lo mismo que pedir una sola.
+        data={"api_token": api_token, "return": "spotify,apple_music"},
         files={"file": ("audio.wav", audio_bytes)},
         timeout=_TIMEOUT,
     )
@@ -69,9 +87,34 @@ def identify_song(audio_bytes: bytes, api_token: str) -> SongMatch | None:
     if not result:
         return None
 
+    # La metadata de Spotify/Apple Music es opcional: AudD reconoce la
+    # canción por su huella de audio, independiente de que después la
+    # encuentre en uno, otro, ambos o ninguno de esos catálogos — en ese
+    # caso el match se sigue devolviendo igual, solo que sin portada ni link
+    # directo (el cliente cae al texto plano). Spotify primero por ser el
+    # más usado; Apple Music como respaldo si Spotify no tuvo match.
+    spotify = result.get("spotify") or {}
+    album_images = ((spotify.get("album") or {}).get("images")) or []
+    cover_url = album_images[0].get("url") if album_images else None
+    link_url = (spotify.get("external_urls") or {}).get("spotify")
+
+    if not cover_url or not link_url:
+        apple_music = result.get("apple_music") or {}
+        artwork_template = (apple_music.get("artwork") or {}).get("url")
+        if not cover_url and artwork_template:
+            # La URL de Apple Music viene con un template de tamaño
+            # ("{w}x{h}bb.jpeg") en vez de una imagen fija — 600x600 es un
+            # tamaño de portada estándar, ni el thumbnail más chico ni el
+            # original a máxima resolución.
+            cover_url = artwork_template.replace("{w}x{h}", "600x600")
+        if not link_url:
+            link_url = apple_music.get("url")
+
     return SongMatch(
         artist=result["artist"],
         title=result["title"],
         album=result.get("album"),
         song_link=result.get("song_link"),
+        cover_url=cover_url,
+        track_url=link_url,
     )
