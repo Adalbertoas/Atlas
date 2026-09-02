@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/chat_message.dart';
 import '../services/api_client.dart';
 import '../theme/atlas_theme.dart';
+import '../widgets/markdown_text.dart';
 
 class ChatScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -173,11 +174,18 @@ class _ChatBubble extends StatelessWidget {
   Widget _bubbleContent() {
     final isUser = message.role == ChatRole.user;
     final textColor = isUser ? AtlasColors.accentOn : AtlasColors.text;
+    final textStyle = TextStyle(color: textColor, fontSize: 14.5, height: 1.45);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(message.text, style: TextStyle(color: textColor)),
+        // Solo lo que dice ATLAS se interpreta como Markdown; lo que
+        // escribiste vos se muestra literal, igual que en el dashboard
+        // (allá la burbuja del usuario usa textContent y no innerHTML).
+        if (isUser)
+          Text(message.text, style: textStyle)
+        else
+          MarkdownText(text: message.text, baseStyle: textStyle),
         if (message.toolHint != null) ...[
           const SizedBox(height: 6),
           Container(
@@ -265,27 +273,44 @@ class _ChatInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                decoration: const InputDecoration(hintText: 'Escribile a ATLAS…'),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                enabled: !sending,
+    return Container(
+      decoration: const BoxDecoration(
+        color: AtlasColors.bg,
+        border: Border(top: BorderSide(color: AtlasColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  style: const TextStyle(fontSize: 14.5),
+                  decoration: const InputDecoration(
+                    hintText: 'Escribile a ATLAS…',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+                  ),
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => onSend(),
+                  enabled: !sending,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              onPressed: sending ? null : onSend,
-              icon: const Icon(Icons.send_rounded),
-            ),
-          ],
+              const SizedBox(width: 8),
+              IconButton.filled(
+                onPressed: sending ? null : onSend,
+                icon: const Icon(Icons.send_rounded, size: 20),
+                style: IconButton.styleFrom(
+                  backgroundColor: AtlasColors.accent,
+                  foregroundColor: AtlasColors.accentOn,
+                  disabledBackgroundColor: AtlasColors.panel2,
+                  disabledForegroundColor: AtlasColors.textFaint,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

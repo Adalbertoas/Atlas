@@ -21,12 +21,54 @@ class AtlasColors {
   static const ok = Color(0xFF34D399);
   static const warn = Color(0xFFFBBF24);
   static const danger = Color(0xFFF87171);
+
+  /// Equivalentes de --accent-soft / --accent-line / --accent-glow. En CSS
+  /// son rgba() literales; acá se derivan del acento para que un cambio de
+  /// `accent` arrastre a los cuatro.
+  static const accentSoft = Color(0x1F22D3EE); // 12%
+  static const accentLine = Color(0x4722D3EE); // 28%
+  static const accentGlow = Color(0x5922D3EE); // 35%
+}
+
+/// --radius y --radius-sm de dashboard/styles.css. Las tarjetas y los
+/// campos usan el chico; los paneles y las burbujas del chat, el grande.
+class AtlasRadius {
+  static const card = 10.0;
+  static const panel = 14.0;
+}
+
+/// --font-body / --font-display. Inter para todo el cuerpo; Space Grotesk
+/// reservada para marca y títulos, igual que en el dashboard.
+class AtlasFonts {
+  static const body = 'Inter';
+  static const display = 'SpaceGrotesk';
+}
+
+/// El degradado de `.panel` (linear-gradient(160deg, --panel-2, --panel)).
+/// 160° en CSS se mide desde arriba en sentido horario, así que va de
+/// arriba-izquierda a abajo-derecha.
+const atlasPanelGradient = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [AtlasColors.panel2, AtlasColors.panel],
+);
+
+/// Decoración de `.card`: panel plano con borde, radio chico. Es la fila de
+/// lista que usan dispositivos, rutinas, avisos y memoria — un solo lugar
+/// para que las cuatro pantallas no diverjan.
+BoxDecoration atlasCardDecoration({bool highlighted = false}) {
+  return BoxDecoration(
+    color: AtlasColors.panel,
+    borderRadius: BorderRadius.circular(AtlasRadius.card),
+    border: Border.all(color: highlighted ? AtlasColors.accentLine : AtlasColors.border),
+  );
 }
 
 ThemeData buildAtlasTheme() {
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
+    fontFamily: AtlasFonts.body,
     scaffoldBackgroundColor: AtlasColors.bg,
     colorScheme: const ColorScheme.dark(
       primary: AtlasColors.accent,
@@ -44,16 +86,16 @@ ThemeData buildAtlasTheme() {
       filled: true,
       fillColor: AtlasColors.panel,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AtlasRadius.card),
         borderSide: const BorderSide(color: AtlasColors.borderBright),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AtlasRadius.card),
         borderSide: const BorderSide(color: AtlasColors.borderBright),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AtlasColors.accent),
+        borderRadius: BorderRadius.circular(AtlasRadius.card),
+        borderSide: const BorderSide(color: AtlasColors.accentLine),
       ),
       hintStyle: const TextStyle(color: AtlasColors.textFaint),
     ),
@@ -62,16 +104,28 @@ ThemeData buildAtlasTheme() {
         backgroundColor: AtlasColors.accent,
         foregroundColor: AtlasColors.accentOn,
         padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AtlasRadius.card)),
+        textStyle: const TextStyle(fontFamily: AtlasFonts.body, fontWeight: FontWeight.w700),
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: AtlasColors.panel,
-      indicatorColor: AtlasColors.accent.withValues(alpha: 0.16),
+      indicatorColor: AtlasColors.accentSoft,
       labelTextStyle: WidgetStateProperty.all(
-        const TextStyle(fontSize: 12, color: AtlasColors.textDim),
+        const TextStyle(fontFamily: AtlasFonts.body, fontSize: 11, color: AtlasColors.textDim),
       ),
+    ),
+    dividerTheme: const DividerThemeData(color: AtlasColors.border, space: 1, thickness: 1),
+    // Sin esto el SnackBar sale con el gris claro de Material por defecto y
+    // desentona con todo lo demás (se ve en las confirmaciones de "Ejecutar").
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: AtlasColors.panel2,
+      contentTextStyle: const TextStyle(fontFamily: AtlasFonts.body, color: AtlasColors.text, fontSize: 13.5),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AtlasRadius.card),
+        side: const BorderSide(color: AtlasColors.borderBright),
+      ),
+      behavior: SnackBarBehavior.floating,
     ),
     textTheme: const TextTheme(
       bodyMedium: TextStyle(color: AtlasColors.text),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../theme/atlas_theme.dart';
+import '../widgets/atlas_chrome.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -71,21 +72,22 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.hub_outlined, size: 56, color: AtlasColors.accent),
+                  const AtlasBrandMark(size: 58),
                   const SizedBox(height: 14),
                   const Text(
                     'ATLAS',
                     style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 6,
+                      fontFamily: AtlasFonts.display,
+                      fontSize: 31,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 6.2,
                       color: AtlasColors.text,
                     ),
                   ),
                   const SizedBox(height: 6),
                   const Text(
                     'Tu asistente personal inteligente',
-                    style: TextStyle(color: AtlasColors.textDim),
+                    style: TextStyle(color: AtlasColors.textDim, fontSize: 13.5),
                   ),
                   const SizedBox(height: 28),
                   TextField(

@@ -5,6 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/device.dart';
+import '../models/memory_entry.dart';
+import '../models/notification_item.dart';
+import '../models/routine.dart';
 
 /// Excepción para cualquier fallo de la API — mensaje ya listo para mostrar,
 /// mismo criterio que el helper `api()` de dashboard/app.js (arma un
@@ -277,6 +280,73 @@ class ApiClient {
     }
     final list = jsonDecode(response.body) as List;
     return list.map((e) => Device.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // ---------- Rutinas, avisos y memoria ----------
+  //
+  // Las tres son listas de solo lectura más una acción por fila, igual que
+  // en dashboard/app.js. Se apoyan en este helper para no repetir seis veces
+  // el mismo GET con chequeo de 401.
+
+  Future<List<dynamic>> _getList(String path) async {
+    final response = await http.get(_uri(path), headers: _headers(json: false));
+    await _checkAuth(response);
+    if (response.statusCode != 200) {
+      throw ApiException(await _errorDetail(response));
+    }
+    return jsonDecode(response.body) as List;
+  }
+
+  Future<List<Routine>> listAutomations() async {
+    final list = await _getList('/api/v1/automations');
+    return list.map((e) => Routine.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<RoutineRunResult> runAutomation(int id) async {
+    final response = await http.post(_uri('/api/v1/automations/$id/run'), headers: _headers(json: false));
+    await _checkAuth(response);
+    if (response.statusCode != 200) {
+      throw ApiException(await _errorDetail(response));
+    }
+    return RoutineRunResult.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<List<NotificationItem>> listNotifications({bool unreadOnly = false}) async {
+    final list = await _getList('/api/v1/notifications?unread_only=$unreadOnly');
+    return list.map((e) => NotificationItem.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> markNotificationRead(int id) async {
+    final response = await http.patch(
+      _uri('/api/v1/notifications/$id/read'),
+      headers: _headers(json: false),
+    );
+    await _checkAuth(response);
+    if (response.statusCode != 200) {
+      throw ApiException(await _errorDetail(response));
+    }
+  }
+
+  Future<List<MemoryEntry>> listMemories() async {
+    final list = await _getList('/api/v1/memory');
+    return list.map((e) => MemoryEntry.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> deleteMemory(int id) async {
+    final response = await http.delete(_uri('/api/v1/memory/$id'), headers: _headers(json: false));
+    await _checkAuth(response);
+    if (response.statusCode != 200) {
+      throw ApiException(await _errorDetail(response));
+    }
+  }
+
+  /// Para el punto de estado de la barra superior. A diferencia de
+  /// checkHealth() no recibe una URL candidata: usa la ya configurada y solo
+  /// dice si el backend contesta, sin lanzar (el indicador no debe romper
+  /// la pantalla que lo muestra).
+  Future<bool> ping() async {
+    if (_baseUrl == null) return false;
+    return checkHealth(_baseUrl!);
   }
 
   Future<bool> checkHealth(String candidateBaseUrl) async {

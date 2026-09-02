@@ -46,6 +46,10 @@ dependencies:
   # sistema personal de un solo usuario, no justifica flutter_secure_storage
   # (que agrega superficie nativa por plataforma) para esta primera versión.
   shared_preferences: ^2.5.3
+  # Abrir en el navegador los links que ATLAS devuelve en el chat (una
+  # búsqueda web, un video de YouTube). El dashboard y la PWA los renderizan
+  # como <a>; en una app nativa hace falta un plugin para salir al navegador.
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
@@ -68,6 +72,28 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Inter y Space Grotesk empaquetadas, no traídas de un CDN como en
+  # dashboard/index.html: la app corre contra un backend de la LAN y tiene
+  # que verse igual sin internet. Mismos pesos que usa el dashboard
+  # (--font-body / --font-display en dashboard/styles.css).
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: SpaceGrotesk
+      fonts:
+        - asset: assets/fonts/SpaceGrotesk-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/SpaceGrotesk-Bold.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

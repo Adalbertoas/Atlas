@@ -72,12 +72,35 @@ Todo lo de abajo se manejó por `adb` y se verificó con capturas.
       `POST /api/v1/auth/logout` desde curl, el siguiente request devolvió 401
       y la app cayó a la pantalla de login en vez de romperse.
 
-### Encontrado en esta prueba
+### Rediseño y pestañas nuevas (misma sesión)
 
-- [ ] **Markdown crudo en el chat de la app Flutter**: la respuesta se muestra
-      literal como `Soy **ATLAS**, tu asistente...`. La PWA y el dashboard sí
-      lo renderizan (`shared/markdown.js`); la app nativa no tiene equivalente.
-      Sin corregir — decidir con el usuario.
+La app se alineó con el diseño del dashboard y se le sumaron tres pestañas.
+Todo verificado en el emulador con capturas:
+
+- [x] Fuentes Inter + Space Grotesk empaquetadas, marca con halo, punto de
+      estado de conexión latiendo y barra superior con título y bajada.
+- [x] **Markdown en el chat** (era el hallazgo de la prueba anterior): las
+      negritas y las listas se renderizan; ya no se ven los asteriscos.
+- [x] Rutinas: la tarjeta muestra "1 acción · a las 07:30" y **"Ejecutar"
+      corrió la rutina de verdad** ("1 ejecutada(s)").
+- [x] Notificaciones: cargan las dos que había en la base, con fecha.
+- [x] Memoria: la tarjeta muestra contenido, categoría, tags y fecha, y
+      **"Olvidar" borró el registro del backend** (confirmado por API).
+- [x] Los estados vacíos de rutinas y memoria son reales, no un error: la
+      base tenía cero de ambas (verificado con curl).
+
+Defectos corregidos durante la prueba, no antes:
+
+- Las listas numeradas se veían "1. 1. 1." — el modelo separa los ítems con
+  una línea en blanco y cada uno se parseaba como una lista nueva. Ahora se
+  conserva el número del original.
+- El SnackBar salía con el gris claro de Material por defecto.
+
+Pendiente de esta parte:
+
+- [ ] El badge de avisos sin leer no se pudo probar: las dos notificaciones
+      de la base ya estaban leídas y no hay endpoint para marcarlas como no
+      leídas. Confirmarlo la próxima vez que llegue un aviso nuevo.
 
 ## Pendiente
 

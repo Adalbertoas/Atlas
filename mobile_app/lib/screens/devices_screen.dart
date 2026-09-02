@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/device.dart';
 import '../services/api_client.dart';
 import '../theme/atlas_theme.dart';
+import '../widgets/atlas_chrome.dart';
 
 class DevicesScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -27,10 +28,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() => _error = null);
     try {
       final devices = await widget.apiClient.listDevices();
       setState(() => _devices = devices);
@@ -65,40 +63,16 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading && _devices.isEmpty) {
-      return const Center(child: CircularProgressIndicator(color: AtlasColors.accent));
-    }
-    if (_error != null && _devices.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_error!, style: const TextStyle(color: AtlasColors.danger)),
-            const SizedBox(height: 12),
-            ElevatedButton(onPressed: _load, child: const Text('Reintentar')),
-          ],
-        ),
-      );
-    }
-    if (_devices.isEmpty) {
-      return const Center(
-        child: Text('Sin dispositivos.', style: TextStyle(color: AtlasColors.textFaint)),
-      );
-    }
-
-    return RefreshIndicator(
+    return AtlasResourceList<Device>(
+      items: _devices,
+      loading: _loading,
+      error: _error,
+      emptyMessage: 'Sin dispositivos.',
       onRefresh: _load,
-      color: AtlasColors.accent,
-      backgroundColor: AtlasColors.panel,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(14),
-        itemCount: _devices.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 8),
-        itemBuilder: (context, index) => _DeviceCard(
-          device: _devices[index],
-          busy: _togglingId == _devices[index].id,
-          onToggle: () => _toggle(_devices[index]),
-        ),
+      itemBuilder: (context, device) => _DeviceCard(
+        device: device,
+        busy: _togglingId == device.id,
+        onToggle: () => _toggle(device),
       ),
     );
   }
@@ -113,45 +87,29 @@ class _DeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AtlasColors.panel,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AtlasColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(_iconFor(device.type), color: device.isOn ? AtlasColors.accent : AtlasColors.textDim),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(device.name, style: const TextStyle(color: AtlasColors.text, fontSize: 14)),
-                Text(
-                  device.canToggle
-                      ? '${device.room ?? "Sin sala"} · ${device.isOn ? "Encendido" : "Apagado"}'
-                      : '${device.room ?? "Sin sala"} · ${device.state}',
-                  style: const TextStyle(color: AtlasColors.textFaint, fontSize: 12),
+    return AtlasCard(
+      icon: _iconFor(device.type),
+      iconColor: device.isOn ? AtlasColors.accent : AtlasColors.textDim,
+      title: device.name,
+      subtitle: device.canToggle
+          ? '${device.room ?? "Sin sala"} · ${device.isOn ? "Encendido" : "Apagado"}'
+          : '${device.room ?? "Sin sala"} · ${device.state}',
+      trailing: !device.canToggle
+          ? null
+          : busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AtlasColors.accent),
+                )
+              : Switch(
+                  value: device.isOn,
+                  activeThumbColor: AtlasColors.accent,
+                  activeTrackColor: AtlasColors.accentSoft,
+                  inactiveThumbColor: AtlasColors.textDim,
+                  inactiveTrackColor: AtlasColors.panel2,
+                  onChanged: (_) => onToggle(),
                 ),
-              ],
-            ),
-          ),
-          if (device.canToggle)
-            busy
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AtlasColors.accent),
-                  )
-                : Switch(
-                    value: device.isOn,
-                    activeThumbColor: AtlasColors.accent,
-                    onChanged: (_) => onToggle(),
-                  ),
-        ],
-      ),
     );
   }
 

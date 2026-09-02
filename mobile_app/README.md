@@ -4,10 +4,16 @@ App nativa en Flutter (Android + iOS desde un solo código) — distinta de
 `mobile/`, que es la PWA existente (HTML/CSS/JS vanilla). Las dos conviven:
 esta es la exploración de un cliente nativo, no un reemplazo todavía.
 
-**Alcance de esta primera versión:** login, chat (con streaming en vivo
-contra `/api/v1/chat/stream`) y lista/control de dispositivos. El resto de
-lo que ya tiene la PWA (voz, gestos, notificaciones push, Shazam, memoria)
-queda para iteraciones siguientes — ver "Qué falta" más abajo.
+**Alcance actual:** login, chat (con streaming en vivo contra
+`/api/v1/chat/stream` y Markdown renderizado), dispositivos, rutinas,
+notificaciones y memoria. Lo que necesita hardware o permisos del celular
+—voz, cámara, push, Shazam, gestos— sigue existiendo solo en la PWA; ver
+"Qué falta" más abajo.
+
+La interfaz sigue el diseño del dashboard (`dashboard/styles.css`), no el de
+la PWA `mobile/`, que quedó con la paleta anterior al rediseño: misma
+paleta, mismas fuentes (Inter + Space Grotesk, empaquetadas), mismas
+tarjetas y la misma barra con marca, estado de conexión y título de vista.
 
 ## Importante: iOS no se puede compilar ni probar en Windows
 
@@ -55,23 +61,34 @@ no para exponerlo a internet.
 ```
 lib/
 ├── main.dart              # entry point, decide login vs. home según haya token guardado
-├── models/
+├── models/                # espejos de los schemas del backend
 │   ├── chat_message.dart  # texto mutable — se llena token a token con el streaming
-│   └── device.dart        # espejo de DeviceOut (backend/app/smart_home/schemas.py)
+│   ├── device.dart        # DeviceOut (backend/app/smart_home/schemas.py)
+│   ├── routine.dart       # RoutineOut + RoutineRunResult
+│   ├── notification_item.dart
+│   └── memory_entry.dart
 ├── services/
-│   └── api_client.dart    # login/logout, /chat, /chat/stream (SSE a mano), /devices
+│   └── api_client.dart    # login/logout, /chat, /chat/stream (SSE a mano) y las listas
 ├── theme/
-│   └── atlas_theme.dart   # misma paleta que dashboard/styles.css
+│   └── atlas_theme.dart   # paleta, radios y fuentes de dashboard/styles.css
+├── utils/
+│   └── format.dart
+├── widgets/
+│   ├── atlas_chrome.dart  # marca, punto de estado, tarjetas y lista de recursos
+│   └── markdown_text.dart # el equivalente Dart de shared/markdown.js
 └── screens/
     ├── login_screen.dart
-    ├── home_screen.dart   # shell con navegación inferior
+    ├── home_screen.dart   # shell con barra superior y 5 pestañas
     ├── chat_screen.dart
-    └── devices_screen.dart
+    ├── devices_screen.dart
+    ├── automations_screen.dart
+    ├── notifications_screen.dart
+    └── memory_screen.dart
 ```
 
 **Decisiones que vale la pena no perder:**
 
-- **Sin gestor de estado externo** (`provider`, `riverpod`, etc.): con 4
+- **Sin gestor de estado externo** (`provider`, `riverpod`, etc.): con 6
   pantallas y un solo `ApiClient` compartido por constructor, alcanza con
   `StatefulWidget` + `setState`. Mismo espíritu que dashboard/mobile
   (JS vanilla, sin framework) — se suma una dependencia de estado si el
@@ -86,6 +103,18 @@ lib/
   natural por `/api/v1/chat` ("encendé/apagá `<nombre>`"), igual que
   `dashboard/app.js` y `mobile/app.js` — todo pasa por el Orchestrator y el
   Permission Manager, ni el celular tiene un atajo directo.
+- **Las fuentes van empaquetadas** (`assets/fonts/`), no traídas del CDN de
+  Google como en `dashboard/index.html`: la app corre contra un backend de
+  la LAN y tiene que verse igual sin internet.
+- **El Markdown se renderiza a mano** (`widgets/markdown_text.dart`), igual
+  que `shared/markdown.js` lo hace para el dashboard y la PWA: un paquete de
+  pub.dev traería un parser CommonMark entero para lo que el modelo
+  realmente usa (negritas, listas, código, links). Diferencia conocida: los
+  links de YouTube no muestran la tarjeta con miniatura que sí arma la web.
+- **Las cuatro listas comparten `AtlasResourceList`**: los cuatro estados
+  (cargando, error, vacía, con datos) y el "deslizar para actualizar" se
+  escriben una sola vez, para que no terminen mostrando el error de maneras
+  distintas.
 - **Sesión expirada/revocada**: cualquier 401 (token vencido, o revocado
   desde otro dispositivo con `/auth/logout`) limpia el token local y manda
   de vuelta al login (`ApiClient.onSessionExpired`) — mismo criterio que el
@@ -93,7 +122,8 @@ lib/
 
 ## Qué falta (fuera de alcance de esta primera versión)
 
-Voz (STT/TTS), notificaciones push, Shazam, memoria, automatizaciones,
-control por gestos — todo lo que ya tiene `mobile/` salvo chat y
-dispositivos. Se suma en iteraciones siguientes si esta primera versión
-resulta el camino a seguir.
+Todo lo que necesita hardware o permisos del celular y hoy solo existe en
+`mobile/`: voz (STT/TTS y wake word), notificaciones push, la foto para
+visión, Shazam y el control por gestos. También falta crear rutinas y
+memorias desde la app — hoy se leen y se ejecutan/olvidan, pero darlas de
+alta se hace por chat, igual que en el dashboard.
