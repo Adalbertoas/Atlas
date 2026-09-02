@@ -1,5 +1,11 @@
 # Handoff — probar la app móvil nativa (Flutter) en la PC con Android Studio
 
+> **RESUELTO el 2 sep 2026.** La app corrió por primera vez en un emulador
+> Android 15 creado por consola (`sdkmanager` + `avdmanager`), sin instalar
+> Android Studio. Los seis puntos de "Qué confirmar" pasaron; el resultado
+> quedó en `docs/pending-manual-tests.md`. Este documento se conserva como
+> registro del setup.
+
 **Para la sesión de Claude que corra en la otra PC (la que tiene gráficas).**
 Escrito el 28 ago 2026 desde la PC sin Android Studio, donde la app Flutter
 se pudo escribir y analizar pero **no correr** (no hay emulador ni celular

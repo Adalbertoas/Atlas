@@ -47,6 +47,38 @@ python serve.py
       `desktop/atlas_desktop/config.py` (detecta el esquema según si existe
       el certificado) y `api_client.py` (valida contra ese certificado).
 
+## App nativa Flutter (`mobile_app/`) — probada en emulador el 2 sep 2026
+
+Primera ejecución real de la app Flutter, en un emulador Android 15 (Pixel 6,
+`atlas_pixel`) creado por consola con `sdkmanager`/`avdmanager` — sin instalar
+Android Studio. Backend en HTTP plano (`certs/dev-cert.pem` renombrado
+temporalmente, ya restaurado), URL del servidor `http://10.0.2.2:8000`.
+Todo lo de abajo se manejó por `adb` y se verificó con capturas.
+
+- [x] Compila e instala: `assembleDebug` en 63 s, APK instalado y app arrancada.
+- [x] Login con `admin123` contra `http://10.0.2.2:8000`.
+- [x] El token persiste: `force-stop` + relanzar entra directo al Chat, sin
+      pedir la contraseña (confirmado también leyendo
+      `shared_prefs/FlutterSharedPreferences.xml`, que guarda
+      `flutter.atlas_token` y `flutter.atlas_base_url`).
+- [x] Chat con streaming real: a los 3 s solo se veía la primera letra de la
+      respuesta y a los 6 s el texto completo — el parseo de SSE a mano
+      funciona, no llega todo de golpe al final.
+- [x] `/api/v1/devices` carga las 4 entidades (Luz Sala, Enchufe Oficina,
+      Puerta Principal, Termostato).
+- [x] El toggle de "Luz Sala" la encendió de verdad (pasó a "Encendido"),
+      vía comando en lenguaje natural por el Orchestrator.
+- [x] Sesión expirada: revocando el token de la app con
+      `POST /api/v1/auth/logout` desde curl, el siguiente request devolvió 401
+      y la app cayó a la pantalla de login en vez de romperse.
+
+### Encontrado en esta prueba
+
+- [ ] **Markdown crudo en el chat de la app Flutter**: la respuesta se muestra
+      literal como `Soy **ATLAS**, tu asistente...`. La PWA y el dashboard sí
+      lo renderizan (`shared/markdown.js`); la app nativa no tiene equivalente.
+      Sin corregir — decidir con el usuario.
+
 ## Pendiente
 
 - [ ] **Diálogo de confirmación en el escritorio**: pedir "abre la
