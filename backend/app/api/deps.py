@@ -9,12 +9,17 @@ from sqlalchemy.orm import Session
 from app.ai.anthropic_provider import AnthropicProvider
 from app.ai.base import AIProvider
 from app.ai.mock_provider import MockProvider
+from app.ai.router import AIRouter
+from app.agent.executor import AgentExecutor
+from app.agent.planner import TaskPlanner
+from app.agent.service import AgentService
 from app.config import get_settings
 from app.core.database import get_db
 from app.core.orchestrator import Orchestrator
 from app.events.bus import event_bus
 from app.security.permissions import permission_manager
 from app.tools.registry import tool_registry
+from app.skills.service import skill_registry
 from app.voice.base import SpeechToTextProvider, TextToSpeechProvider
 from app.voice.mock_provider import MockSTTProvider, MockTTSProvider
 
@@ -26,9 +31,10 @@ def get_db_session() -> Generator[Session, None, None]:
 @lru_cache
 def _build_ai_provider() -> AIProvider:
     settings = get_settings()
+    providers: dict[str, AIProvider] = {"mock": MockProvider()}
     if settings.ai_provider == "anthropic":
-        return AnthropicProvider(api_key=settings.anthropic_api_key, model=settings.anthropic_model)
-    return MockProvider()
+        providers["anthropic"] = AnthropicProvider(api_key=settings.anthropic_api_key, model=settings.anthropic_model)
+    return AIRouter(providers, settings.ai_provider if settings.ai_provider in providers else "mock")
 
 
 @lru_cache
@@ -38,6 +44,15 @@ def get_orchestrator() -> Orchestrator:
         registry=tool_registry,
         permissions=permission_manager,
         events=event_bus,
+    )
+
+
+@lru_cache
+def get_agent_service() -> AgentService:
+    return AgentService(
+        TaskPlanner(skill_registry, tool_registry),
+        AgentExecutor(tool_registry, skill_registry, permission_manager, event_bus),
+        event_bus,
     )
 
 

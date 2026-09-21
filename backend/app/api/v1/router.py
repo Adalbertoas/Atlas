@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from app.api.v1 import (
     auth,
+    agent,
     automations,
     chat,
     devices,
@@ -32,6 +33,7 @@ api_router.include_router(system.router)  # /health es público; /status exige l
 # olvidarse de ninguna sin querer.
 _protected = Depends(get_current_user)
 api_router.include_router(chat.router, dependencies=[_protected])
+api_router.include_router(agent.router, dependencies=[_protected])
 api_router.include_router(memory.router, dependencies=[_protected])
 api_router.include_router(tools.router, dependencies=[_protected])
 api_router.include_router(settings.router, dependencies=[_protected])

@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     anthropic_daily_budget_usd: float = 5.0
     anthropic_monthly_budget_usd: float = 0.0
 
+    # Agent Platform (Fase 10). Estos topes son deliberadamente pequeños:
+    # una tarea personal normal no necesita decenas de acciones autónomas.
+    agent_max_steps: int = 12
+    agent_max_tool_calls: int = 20
+    agent_timeout_seconds: int = 120
+
     jwt_secret: str = "changeme-generate-a-real-secret"
     jwt_expire_minutes: int = 1440
     # Rate limiting de /auth/login (sección 5, endurecido): tras
