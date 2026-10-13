@@ -1,0 +1,6 @@
+# Copia del WASM de MediaPipe: se regenera desde node_modules con
+# `npm run setup:mediapipe` (tambien en predev/prebuild).
+public/mediapipe/wasm/
+
+# Salida de compilacion del proceso principal (`npm run build:electron`).
+dist-electron/
