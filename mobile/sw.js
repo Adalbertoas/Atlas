@@ -1,7 +1,7 @@
 // Service worker mínimo: solo lo necesario para que el navegador considere
 // la página instalable como PWA. No cachea la API (los datos de ATLAS
 // siempre deben ser en vivo), solo permite que el ícono/manifest se registren.
-const CACHE_NAME = "atlas-shell-v9"; // subir la versión invalida la caché vieja (ej. tras cambios en app.js)
+const CACHE_NAME = "atlas-shell-v12"; // invalidate the prior shell after gesture calibration changes
 const SHELL_FILES = ["./index.html", "./styles.css", "./app.js", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -21,7 +21,18 @@ self.addEventListener("fetch", (event) => {
   // Nunca cachear llamadas a la API del backend (puertos distintos al de este PWA).
   if (url.pathname.startsWith("/api/")) return;
 
+  // La PWA se usa desde la red local mientras se ajustan gestos y pantallas.
+  // Preferir red evita que una instalaciÃ³n vieja mantenga app.js en cachÃ©;
+  // el cachÃ© queda solo como respaldo si la PC no estÃ¡ disponible.
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok && event.request.method === "GET") {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

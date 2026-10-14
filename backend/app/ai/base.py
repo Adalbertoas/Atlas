@@ -7,6 +7,7 @@ o soportar una key por usuario (BYOK), sin tocar el Orchestrator ni las tools.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -63,3 +64,19 @@ class AIProvider(ABC):
     ) -> AIResponse:
         """Envía la conversación al modelo y devuelve texto o tool_calls a ejecutar."""
         raise NotImplementedError
+
+    def chat_stream(
+        self,
+        messages: list[AIMessage],
+        tools: list[ToolSchema] | None = None,
+    ) -> Iterator[str | AIResponse]:
+        """Como chat(), pero entrega el texto a medida que el modelo lo genera:
+        emite fragmentos (str) y, al final, siempre el AIResponse completo.
+
+        Implementación por defecto para proveedores sin streaming: un único
+        fragmento con todo el texto. Si el turno pide tools no se emite texto.
+        """
+        response = self.chat(messages, tools=tools)
+        if response.text and not response.wants_tool_call:
+            yield response.text
+        yield response

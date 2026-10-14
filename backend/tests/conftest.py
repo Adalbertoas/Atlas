@@ -14,6 +14,9 @@ os.environ.setdefault("SMART_HOME_PROVIDER", "mock")
 os.environ.setdefault("VISION_PROVIDER", "mock")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("ATLAS_PASSWORD", "test-password")
+# Forzado (no setdefault): los tests de auth asumen login activo aunque el
+# backend/.env local tenga AUTH_ENABLED=false.
+os.environ["AUTH_ENABLED"] = "true"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,6 +43,8 @@ def db_session():
     from app.memory import models as _memory_models  # noqa: F401
     from app.notifications import models as _notifications_models  # noqa: F401
     from app.personality import models as _personality_models  # noqa: F401
+    from app.reminders import service as _reminder_models  # noqa: F401
+    from app.world import alerts as _world_alert_models  # noqa: F401
     from app.security import audit as _audit_models  # noqa: F401
     from app.smart_home import models as _smart_home_models  # noqa: F401
 

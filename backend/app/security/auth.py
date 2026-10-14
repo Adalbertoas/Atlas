@@ -23,6 +23,10 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 
 def verify_password(password: str) -> bool:
     settings = get_settings()
+    if not settings.auth_enabled:
+        # AUTH_ENABLED=false: login desactivado, cualquier contraseña sirve
+        # (los clientes entran solos mandando una vacía).
+        return True
     if not settings.atlas_password:
         # Sin contraseña configurada no hay forma segura de loguearse:
         # falla cerrado en vez de aceptar cualquier cosa.
@@ -53,6 +57,8 @@ def is_token_valid(token: str) -> bool:
     """Para contextos que no son un request HTTP normal (ej. WebSocket, que
     no tiene el mismo mecanismo de excepciones) — no levanta HTTPException,
     solo dice si el token sirve."""
+    if not get_settings().auth_enabled:
+        return True
     try:
         jwt.decode(token, get_settings().jwt_secret, algorithms=[_ALGORITHM])
         return True
@@ -65,6 +71,8 @@ def get_current_user(
 ) -> str:
     """Dependencia de FastAPI: exige un Bearer token válido. Usar en cada
     endpoint que deba requerir login (todos salvo /system/health y /auth/login)."""
+    if not get_settings().auth_enabled:
+        return _SUBJECT
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

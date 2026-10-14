@@ -8,12 +8,20 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = None
 
 
+class ChatImage(BaseModel):
+    """Imagen devuelta por una tool (ej. un mapa de radar), en base64."""
+
+    mime_type: str
+    data: str
+
+
 class ChatResponse(BaseModel):
     reply: str | None = None
     conversation_id: str
     requires_confirmation: bool = False
     confirmation_id: str | None = None
     confirmation_description: str | None = None
+    images: list[ChatImage] = []
 
 
 class ConfirmRequest(BaseModel):
@@ -23,3 +31,4 @@ class ConfirmRequest(BaseModel):
 
 class ConfirmResponse(BaseModel):
     reply: str
+    images: list[ChatImage] = []

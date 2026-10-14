@@ -1,0 +1,6 @@
+[submodule "integrations/gods-eye-view"]
+	path = integrations/gods-eye-view
+	url = https://github.com/bilawalsidhu/gods-eye-view.git
+[submodule "integrations/openjarvis"]
+	path = integrations/openjarvis
+	url = https://github.com/open-jarvis/OpenJarvis.git

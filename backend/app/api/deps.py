@@ -26,6 +26,10 @@ def get_db_session() -> Generator[Session, None, None]:
 @lru_cache
 def _build_ai_provider() -> AIProvider:
     settings = get_settings()
+    if settings.ai_provider == "ollama":
+        from app.ai.ollama_provider import OllamaProvider
+
+        return OllamaProvider(model=settings.ollama_model, base_url=settings.ollama_base_url)
     if settings.ai_provider == "anthropic":
         return AnthropicProvider(api_key=settings.anthropic_api_key, model=settings.anthropic_model)
     return MockProvider()
@@ -54,6 +58,10 @@ def get_stt_provider() -> SpeechToTextProvider:
 @lru_cache
 def get_tts_provider() -> TextToSpeechProvider:
     settings = get_settings()
+    if settings.tts_provider == "kokoro":
+        from app.voice.kokoro_provider import KokoroProvider  # import perezoso: el modelo se carga al hablar
+
+        return KokoroProvider(voice=settings.kokoro_voice, speed=settings.kokoro_speed)
     if settings.tts_provider == "sapi":
         from app.voice.sapi_provider import WindowsSapiProvider  # import perezoso: pyttsx3 solo en Windows
 

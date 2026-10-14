@@ -7,6 +7,7 @@ from app.api.deps import get_db_session
 from app.config import get_settings
 from app.security.audit import list_recent
 from app.security.auth import get_current_user
+from app.security.privacy import build_privacy_report
 from app.tools.system.get_system_info import collect_system_info
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -50,3 +51,11 @@ def activity(
         }
         for e in entries
     ]
+
+
+@router.get("/privacy")
+def privacy(_user: str = Depends(get_current_user)) -> dict:
+    """Qué datos salen de esta PC y a dónde, según la configuración activa
+    (panel Privacidad del dashboard). Ver app/security/privacy.py."""
+    settings = get_settings()
+    return {"auth_enabled": settings.auth_enabled, "flows": build_privacy_report(settings)}

@@ -100,6 +100,22 @@ def test_tools_endpoint_lists_all_base_tools(client, auth_headers):
     assert response.status_code == 200
     names = {t["name"] for t in response.json()}
     assert names == {
+        "query_world",
+        "show_world_view",
+        "create_world_alert",
+        "list_world_alerts",
+        "delete_world_alert",
+        "daily_briefing",
+        "create_reminder",
+        "list_reminders",
+        "cancel_reminder",
+        "read_clipboard",
+        "write_clipboard",
+        "manage_window",
+        "save_screenshot",
+        "search_documents",
+        "web_search",
+        "read_web_page",
         "get_system_info",
         "open_application",
         "close_application",

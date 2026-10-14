@@ -15,12 +15,17 @@ cryptography==50.0.1
 # Voz (Fase 3)
 faster-whisper==1.2.1
 pyttsx3==2.99
+# Voz local neural de alta calidad (OpenJarvis/Kokoro pattern)
+kokoro>=0.9.4
 
 # Script de demo de voz (backend/scripts/voice_chat_demo.py)
 sounddevice==0.5.6
 numpy==2.5.2
 soundfile==0.14.0
 requests==2.34.2
+
+# Búsqueda dentro de PDF (search_documents); opcional: sin esto se saltean los PDF
+pypdf>=5.0
 
 # Testing
 pytest==8.3.4

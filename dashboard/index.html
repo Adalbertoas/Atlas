@@ -29,7 +29,10 @@
   <!-- ---------- App principal ---------- -->
   <section id="app-screen" class="screen hidden">
     <aside class="sidebar">
-      <div class="sidebar-brand">ATLAS</div>
+      <div class="sidebar-brand">
+        <span class="brand-mark">A</span>
+        <span>ATLAS</span>
+      </div>
       <nav class="sidebar-nav">
         <button class="nav-button active" data-view="home"><span class="nav-icon">🏠</span>Inicio</button>
         <button class="nav-button" data-view="chat"><span class="nav-icon">💬</span>Chat</button>
@@ -38,6 +41,8 @@
         <button class="nav-button" data-view="notifications"><span class="nav-icon">🔔</span>Notificaciones</button>
         <button class="nav-button" data-view="memory"><span class="nav-icon">🧠</span>Memoria</button>
         <button class="nav-button" data-view="activity"><span class="nav-icon">📜</span>Actividad</button>
+        <button class="nav-button" data-view="world"><span class="nav-icon">🌍</span>Mundo</button>
+        <button class="nav-button" data-view="privacy"><span class="nav-icon">🛡️</span>Privacidad</button>
       </nav>
       <div class="sidebar-footer">
         <span id="connection-status" class="status">conectando…</span>
@@ -45,7 +50,18 @@
       </div>
     </aside>
 
-    <main id="views">
+    <main id="app-main">
+      <header class="app-toolbar">
+        <div>
+          <p class="eyebrow" id="view-eyebrow">CENTRO DE CONTROL</p>
+          <h1 id="view-title">Inicio</h1>
+        </div>
+        <div class="toolbar-actions">
+          <span id="last-sync" class="last-sync">Sin sincronizar</span>
+          <button id="theme-toggle" class="icon-button" type="button" title="Cambiar tema" aria-label="Cambiar tema">◐</button>
+        </div>
+      </header>
+      <div id="views">
       <!-- Inicio: orbe de voz + métricas del sistema -->
       <div id="view-home" class="view active">
         <div class="home-grid">
@@ -55,6 +71,10 @@
               <span id="orb-icon" class="orb-icon">🎙️</span>
             </button>
             <p id="orb-status" class="orb-status">Tocá el orbe para hablar</p>
+            <div class="quick-actions" aria-label="Acciones rápidas">
+              <button type="button" class="quick-action" data-quick-view="chat">Abrir chat</button>
+              <button type="button" class="quick-action" id="refresh-all">Actualizar panel</button>
+            </div>
           </div>
 
           <div class="rings-panel">
@@ -108,7 +128,10 @@
       <div id="view-devices" class="view">
         <div class="view-header">
           <h2>Dispositivos</h2>
-          <button id="refresh-devices" class="link-button">↻ Actualizar</button>
+          <div class="view-actions">
+            <label class="search-field"><span>⌕</span><input id="device-search" type="search" placeholder="Buscar dispositivo" /></label>
+            <button id="refresh-devices" class="link-button">↻ Actualizar</button>
+          </div>
         </div>
         <div id="device-list" class="card-list"></div>
       </div>
@@ -120,13 +143,21 @@
           <button id="refresh-automations" class="link-button">↻ Actualizar</button>
         </div>
         <div id="automation-list" class="card-list"></div>
+        <div class="view-header section-header">
+          <h2>Recordatorios</h2>
+          <button id="refresh-reminders" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="reminder-list" class="card-list"></div>
       </div>
 
       <!-- Notificaciones -->
       <div id="view-notifications" class="view">
         <div class="view-header">
           <h2>Notificaciones</h2>
-          <button id="refresh-notifications" class="link-button">↻ Actualizar</button>
+          <div class="view-actions">
+            <label class="toggle-field"><input id="speak-notifications" type="checkbox" /> Leer avisos en voz alta</label>
+            <button id="refresh-notifications" class="link-button">↻ Actualizar</button>
+          </div>
         </div>
         <div id="notification-list" class="card-list"></div>
       </div>
@@ -148,6 +179,44 @@
         </div>
         <div id="activity-list" class="card-list"></div>
       </div>
+
+      <!-- Mundo: consola geoespacial local de Gods Eye View -->
+      <div id="view-world" class="view">
+        <div class="view-header">
+          <div><p class="eyebrow">INTELIGENCIA GEOESPACIAL</p><h2>Mundo en vivo</h2></div>
+          <div class="view-actions">
+            <span id="world-status" class="world-status">Comprobando servicio…</span>
+            <button id="world-reload" class="link-button" type="button">↻ Recargar</button>
+            <button id="world-open" class="link-button" type="button">↗ Abrir aparte</button>
+          </div>
+        </div>
+        <section class="world-panel">
+          <div id="world-empty" class="world-empty">
+            <span class="world-icon">◉</span>
+            <h3>Conectando con Gods Eye View</h3>
+            <p>Iniciá la integración local y volvé a cargar. ATLAS mostrará el globo 3D y sus capas de datos en esta vista.</p>
+            <code>cd integrations/gods-eye-view && npm ci && npm run dev</code>
+          </div>
+          <iframe id="world-frame" class="world-frame" title="Gods Eye View — inteligencia geoespacial" allow="geolocation; microphone; fullscreen" referrerpolicy="no-referrer" hidden></iframe>
+        </section>
+        <div class="view-header section-header">
+          <h2>Alertas activas</h2>
+          <button id="refresh-world-alerts" class="link-button">↻ Actualizar</button>
+        </div>
+        <div id="world-alert-list" class="card-list compact"></div>
+        <p class="world-note">Fuente: Gods Eye View (MIT). Los datos geoespaciales son públicos y pueden ser incompletos, demorados o inexactos; no usar para navegación ni decisiones críticas.</p>
+      </div>
+
+      <!-- Privacidad: qué sale de esta PC y a dónde -->
+      <div id="view-privacy" class="view">
+        <div class="view-header">
+          <h2>Privacidad</h2>
+          <button id="refresh-privacy" class="link-button">↻ Actualizar</button>
+        </div>
+        <p class="privacy-intro">Qué datos salen de esta PC y a dónde, según cómo está configurado ATLAS ahora.</p>
+        <div id="privacy-list" class="card-list"></div>
+      </div>
+      </div>
     </main>
   </section>
 
@@ -161,6 +230,8 @@
       </div>
     </div>
   </div>
+
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
   <script src="app.js"></script>
 </body>

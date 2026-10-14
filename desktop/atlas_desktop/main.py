@@ -57,53 +57,124 @@ class AtlasWindow(ctk.CTk):
     # ---------- layout ----------
 
     def _build_layout(self) -> None:
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        """Interfaz de escritorio: consola nativa con navegación y estado en vivo."""
+        self.geometry("1180x760")
+        self.minsize(960, 620)
+        self.configure(fg_color="#08111f")
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
-        # Barra superior: estado del servidor + estado del sistema.
-        top_bar = ctk.CTkFrame(self)
-        top_bar.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
-        self.server_status_label = ctk.CTkLabel(top_bar, text=f"ATLAS: conectando a {ATLAS_API_URL}...")
-        self.server_status_label.pack(side="left", padx=10, pady=8)
-        self.system_status_label = ctk.CTkLabel(top_bar, text="CPU: -- | RAM: -- | Disco: --")
-        self.system_status_label.pack(side="right", padx=10, pady=8)
+        sidebar = ctk.CTkFrame(self, width=224, corner_radius=0, fg_color="#0c1b30")
+        sidebar.grid(row=0, column=0, sticky="nsew")
+        sidebar.grid_propagate(False)
+        ctk.CTkLabel(sidebar, text="A", width=38, height=38, corner_radius=12, fg_color="#58d6ff", text_color="#06131f", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=22, pady=(25, 4))
+        ctk.CTkLabel(sidebar, text="ATLAS", font=ctk.CTkFont(size=24, weight="bold"), text_color="#f4f8ff").pack(anchor="w", padx=22)
+        ctk.CTkLabel(sidebar, text="ASISTENTE PERSONAL", font=ctk.CTkFont(size=10, weight="bold"), text_color="#71a9c7").pack(anchor="w", padx=22, pady=(0, 28))
 
-        # Panel de chat.
-        self.chat_box = ctk.CTkTextbox(self, wrap="word", state="disabled")
-        self.chat_box.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
+        self.nav_buttons: dict[str, ctk.CTkButton] = {}
+        for key, label, command in (
+            ("chat", "  ◉  Conversación", lambda: self._show_page("chat")),
+            ("system", "  ◈  Sistema", lambda: self._show_page("system")),
+            ("voice", "  ◌  Voz y escucha", self._focus_voice),
+            ("vision", "  ◫  Analizar pantalla", self._on_screenshot_button_clicked),
+        ):
+            button = ctk.CTkButton(sidebar, text=label, anchor="w", height=42, corner_radius=10, fg_color="transparent", hover_color="#163454", text_color="#b9c9dc", command=command)
+            button.pack(fill="x", padx=12, pady=3)
+            self.nav_buttons[key] = button
 
-        # Barra inferior: entrada de texto + botón enviar + botón voz.
-        bottom_bar = ctk.CTkFrame(self)
-        bottom_bar.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
-        bottom_bar.grid_columnconfigure(0, weight=1)
+        self.desktop_mode_label = ctk.CTkLabel(sidebar, text="●  ESCUCHA ACTIVA", text_color="#5fe49b", font=ctk.CTkFont(size=11, weight="bold"))
+        self.desktop_mode_label.pack(side="bottom", anchor="w", padx=22, pady=(0, 8))
+        ctk.CTkLabel(sidebar, text="ATLAS Desktop · local-first", text_color="#66809b", font=ctk.CTkFont(size=10)).pack(side="bottom", anchor="w", padx=22, pady=(0, 22))
 
-        self.entry = ctk.CTkEntry(bottom_bar, placeholder_text="Escríbele a ATLAS...")
-        self.entry.grid(row=0, column=0, sticky="ew", padx=(10, 5), pady=10)
+        main = ctk.CTkFrame(self, corner_radius=0, fg_color="#08111f")
+        main.grid(row=0, column=1, sticky="nsew")
+        main.grid_columnconfigure(0, weight=1)
+        main.grid_rowconfigure(1, weight=1)
+
+        header = ctk.CTkFrame(main, height=82, corner_radius=0, fg_color="#0a1628")
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+        self.page_title = ctk.CTkLabel(header, text="Conversación", font=ctk.CTkFont(size=23, weight="bold"), text_color="#f4f8ff")
+        self.page_title.grid(row=0, column=0, sticky="w", padx=28, pady=(18, 0))
+        self.server_status_label = ctk.CTkLabel(header, text="● Conectando…", text_color="#9badc5", font=ctk.CTkFont(size=12))
+        self.server_status_label.grid(row=1, column=0, sticky="w", padx=28, pady=(0, 16))
+        self.system_status_label = ctk.CTkLabel(header, text="CPU -- · RAM -- · Disco --", text_color="#9badc5", font=ctk.CTkFont(size=12))
+        self.system_status_label.grid(row=0, column=1, rowspan=2, sticky="e", padx=28)
+
+        self.pages = ctk.CTkFrame(main, fg_color="transparent")
+        self.pages.grid(row=1, column=0, sticky="nsew", padx=24, pady=22)
+        self.pages.grid_columnconfigure(0, weight=1)
+        self.pages.grid_rowconfigure(0, weight=1)
+
+        self.chat_page = ctk.CTkFrame(self.pages, fg_color="transparent")
+        self.chat_page.grid_columnconfigure(0, weight=1)
+        self.chat_page.grid_rowconfigure(0, weight=1)
+        self.chat_box = ctk.CTkTextbox(self.chat_page, wrap="word", state="disabled", corner_radius=16, fg_color="#10233a", border_width=1, border_color="#1c4567", text_color="#edf6ff", font=ctk.CTkFont(size=14), scrollbar_button_color="#275878")
+        self.chat_box.grid(row=0, column=0, sticky="nsew", pady=(0, 14))
+        self.chat_box.tag_config("user", foreground="#7cddff")
+        self.chat_box.tag_config("atlas", foreground="#84efbc")
+        self.chat_box.tag_config("body", foreground="#edf6ff")
+
+        composer = ctk.CTkFrame(self.chat_page, corner_radius=16, fg_color="#10233a", border_width=1, border_color="#1c4567")
+        composer.grid(row=1, column=0, sticky="ew")
+        composer.grid_columnconfigure(0, weight=1)
+        self.entry = ctk.CTkEntry(composer, placeholder_text="Escribile a ATLAS…", height=44, border_width=0, fg_color="transparent", font=ctk.CTkFont(size=14))
+        self.entry.grid(row=0, column=0, sticky="ew", padx=(16, 8), pady=10)
         self.entry.bind("<Return>", lambda _event: self._on_send_clicked())
+        self.voice_button = ctk.CTkButton(composer, text="🎙 Hablar", width=96, height=40, corner_radius=12, fg_color="#1b5274", command=self._on_voice_button_clicked)
+        self.voice_button.grid(row=0, column=1, padx=5, pady=10)
+        self.screenshot_button = ctk.CTkButton(composer, text="▣", width=42, height=40, corner_radius=12, fg_color="#1a3049", command=self._on_screenshot_button_clicked)
+        self.screenshot_button.grid(row=0, column=2, padx=5, pady=10)
+        self.send_button = ctk.CTkButton(composer, text="Enviar", width=82, height=40, corner_radius=12, fg_color="#58d6ff", text_color="#06131f", hover_color="#82e4ff", command=self._on_send_clicked)
+        self.send_button.grid(row=0, column=3, padx=(5, 10), pady=10)
 
-        self.send_button = ctk.CTkButton(bottom_bar, text="Enviar", width=90, command=self._on_send_clicked)
-        self.send_button.grid(row=0, column=1, padx=5, pady=10)
+        self.system_page = ctk.CTkFrame(self.pages, fg_color="transparent")
+        self.system_page.grid_columnconfigure((0, 1, 2), weight=1)
+        self.system_page.grid_rowconfigure(1, weight=1)
+        ctk.CTkLabel(self.system_page, text="Estado de tu equipo", font=ctk.CTkFont(size=20, weight="bold"), text_color="#f4f8ff").grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 16))
+        self.metric_widgets: dict[str, tuple[ctk.CTkLabel, ctk.CTkProgressBar]] = {}
+        for column, (key, label, tint) in enumerate((("cpu", "CPU", "#65ddff"), ("ram", "Memoria", "#8fa4ff"), ("disk", "Disco", "#5fe49b"))):
+            card = ctk.CTkFrame(self.system_page, corner_radius=16, fg_color="#10233a", border_width=1, border_color="#1c4567")
+            card.grid(row=1, column=column, sticky="nsew", padx=6)
+            ctk.CTkLabel(card, text=label.upper(), text_color="#9badc5", font=ctk.CTkFont(size=11, weight="bold")).pack(anchor="w", padx=18, pady=(20, 6))
+            value = ctk.CTkLabel(card, text="--%", text_color="#f4f8ff", font=ctk.CTkFont(size=32, weight="bold"))
+            value.pack(anchor="w", padx=18)
+            bar = ctk.CTkProgressBar(card, progress_color=tint, fg_color="#1c3651", height=9)
+            bar.pack(fill="x", padx=18, pady=(15, 8))
+            bar.set(0)
+            ctk.CTkLabel(card, text="Actualización automática", text_color="#66809b", font=ctk.CTkFont(size=10)).pack(anchor="w", padx=18, pady=(0, 18))
+            self.metric_widgets[key] = (value, bar)
+        voice_card = ctk.CTkFrame(self.system_page, corner_radius=16, fg_color="#10233a", border_width=1, border_color="#1c4567")
+        voice_card.grid(row=2, column=0, columnspan=3, sticky="ew", padx=6, pady=(16, 0))
+        voice_card.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(voice_card, text="Escucha por palabra clave", font=ctk.CTkFont(size=16, weight="bold"), text_color="#f4f8ff").grid(row=0, column=0, sticky="w", padx=18, pady=(17, 2))
+        ctk.CTkLabel(voice_card, text="ATLAS se activa al detectar su nombre. Podés pausarlo cuando quieras.", text_color="#9badc5").grid(row=1, column=0, sticky="w", padx=18, pady=(0, 17))
+        self.wake_word_button = ctk.CTkButton(voice_card, text="👂 Escucha: Apagada", width=176, height=38, corner_radius=12, command=self._on_wake_word_toggle_clicked)
+        self.wake_word_button.grid(row=0, column=1, rowspan=2, padx=18)
 
-        self.voice_button = ctk.CTkButton(
-            bottom_bar, text="🎙️ Hablar", width=110, command=self._on_voice_button_clicked
-        )
-        self.voice_button.grid(row=0, column=2, padx=(5, 5), pady=10)
+        self._show_page("chat")
 
-        self.wake_word_button = ctk.CTkButton(
-            bottom_bar, text="👂 Escucha: Apagada", width=170, command=self._on_wake_word_toggle_clicked
-        )
-        self.wake_word_button.grid(row=0, column=3, padx=(5, 5), pady=10)
+    def _show_page(self, page: str) -> None:
+        for frame in (self.chat_page, self.system_page):
+            frame.grid_forget()
+        target = self.chat_page if page in {"chat", "voice"} else self.system_page
+        target.grid(row=0, column=0, sticky="nsew")
+        self.page_title.configure(text="Conversación" if page in {"chat", "voice"} else "Sistema")
+        for key, button in self.nav_buttons.items():
+            button.configure(fg_color="#163d5e" if key == page or (page == "chat" and key == "voice") else "transparent", text_color="#f4f8ff" if key == page else "#b9c9dc")
+        if page == "voice":
+            self.entry.focus()
 
-        self.screenshot_button = ctk.CTkButton(
-            bottom_bar, text="📷 Pantalla", width=110, command=self._on_screenshot_button_clicked
-        )
-        self.screenshot_button.grid(row=0, column=4, padx=(5, 10), pady=10)
-
+    def _focus_voice(self) -> None:
+        self._show_page("voice")
+        self._on_voice_button_clicked()
     # ---------- chat ----------
 
     def _append_chat(self, speaker: str, text: str) -> None:
         self.chat_box.configure(state="normal")
-        self.chat_box.insert("end", f"{speaker}: {text}\n\n")
+        tag = "atlas" if speaker == "ATLAS" else "user"
+        self.chat_box.insert("end", f"{speaker}\n", tag)
+        self.chat_box.insert("end", f"{text}\n\n", "body")
         self.chat_box.configure(state="disabled")
         self.chat_box.see("end")
 
@@ -235,9 +306,11 @@ class AtlasWindow(ctk.CTk):
         if self._wake_listener.is_active:
             self._wake_listener.stop()
             self.wake_word_button.configure(text="👂 Escucha: Apagada", fg_color=("#3a7ebf", "#1f538d"))
+            self.desktop_mode_label.configure(text="○  ESCUCHA PAUSADA", text_color="#9badc5")
         else:
             self._wake_listener.start()
             self.wake_word_button.configure(text="👂 Escucha: Activa", fg_color="#2e7d32")
+            self.desktop_mode_label.configure(text="●  ESCUCHA ACTIVA", text_color="#5fe49b")
 
     def _on_wake_word_detected(self) -> None:
         """Corre en el hilo del WakeWordListener, NO en el hilo de Tk — todo
@@ -312,29 +385,37 @@ class AtlasWindow(ctk.CTk):
         def poll() -> None:
             try:
                 status = api_client.get_system_status()
-                text = (
-                    f"CPU: {status['cpu_percent']:.0f}% | "
-                    f"RAM: {status['ram_percent']:.0f}% | "
-                    f"Disco: {status['disk_percent']:.0f}%"
-                )
+                values = {
+                    "cpu": status["cpu_percent"],
+                    "ram": status["ram_percent"],
+                    "disk": status["disk_percent"],
+                }
+                text = f"CPU {values['cpu']:.0f}% · RAM {values['ram']:.0f}% · Disco {values['disk']:.0f}%"
             except Exception:  # noqa: BLE001
-                text = "CPU: -- | RAM: -- | Disco: --"
-            self.after(0, self.system_status_label.configure, {"text": text})
+                values = {}
+                text = "CPU -- · RAM -- · Disco --"
+            self.after(0, self._update_system_metrics, values, text)
 
         threading.Thread(target=poll, daemon=True).start()
         self.after(3_000, self._poll_system_status)
 
+    def _update_system_metrics(self, values: dict[str, float], summary: str) -> None:
+        self.system_status_label.configure(text=summary)
+        for key, (label, bar) in self.metric_widgets.items():
+            value = values.get(key)
+            label.configure(text=f"{value:.0f}%" if value is not None else "--%")
+            bar.set((value or 0) / 100)
 
 def _login_or_exit() -> None:
     """Fase 7: la API ya no acepta requests anónimos. Si ATLAS_PASSWORD está
-    en desktop/.env se usa directo; si no (o si falla), se pide por diálogo."""
-    password = ATLAS_PASSWORD
-    if password:
-        try:
-            api_client.login(password)
-            return
-        except requests.RequestException:
-            pass  # cae al diálogo manual abajo
+    en desktop/.env se usa directo; si no (o si falla), se pide por diálogo.
+    Con el login desactivado en el backend (AUTH_ENABLED=false) cualquier
+    contraseña sirve, incluida la vacía, así que se entra sin diálogo."""
+    try:
+        api_client.login(ATLAS_PASSWORD)
+        return
+    except requests.RequestException:
+        pass  # cae al diálogo manual abajo
 
     root = ctk.CTk()
     root.withdraw()

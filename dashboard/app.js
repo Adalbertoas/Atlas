@@ -74,7 +74,9 @@ const loginApiUrlInput = document.getElementById("login-api-url");
 
 loginApiUrlInput.value = API_URL === DEFAULT_API_URL ? "" : API_URL;
 loginApiUrlInput.placeholder = `URL del servidor (auto: ${DEFAULT_API_URL})`;
-detectApiUrl(); // ajusta API_URL/placeholder según http/https responda de verdad
+// detectApiUrl ajusta API_URL/placeholder según http/https responda de verdad;
+// recién después se intenta el auto-login (necesita la URL buena).
+const apiUrlReady = detectApiUrl();
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -131,7 +133,28 @@ async function checkConnection() {
   }
 }
 
+/* Si el backend tiene el login desactivado (AUTH_ENABLED=false), acepta
+   cualquier contraseña: se entra solo sin mostrar el formulario. Si no, el
+   login falla y queda la pantalla de contraseña como siempre. */
+async function tryAutoLogin() {
+  await apiUrlReady;
+  try {
+    const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: "" }),
+    });
+    if (!response.ok) return;
+    TOKEN = (await response.json()).access_token;
+    localStorage.setItem("atlas_dashboard_token", TOKEN);
+    enterApp();
+  } catch {
+    /* backend inalcanzable — queda la pantalla de login */
+  }
+}
+
 if (TOKEN) enterApp();
+else tryAutoLogin();
 
 /* ---------- Navegación por sidebar ---------- */
 
@@ -156,25 +179,113 @@ function appendBubble(who, text) {
   bubble.textContent = text;
   chatLog.appendChild(bubble);
   chatLog.scrollTop = chatLog.scrollHeight;
+  return bubble;
+}
+
+/* Imágenes que devuelven las tools (mapa de nubes, cámara pública…). */
+function appendImages(bubble, images) {
+  (images || []).forEach((image) => {
+    const img = document.createElement("img");
+    img.className = "chat-image";
+    img.alt = "Imagen enviada por ATLAS";
+    img.src = `data:${image.mime_type};base64,${image.data}`;
+    img.addEventListener("click", () => window.open(img.src, "_blank", "noopener"));
+    bubble.appendChild(img);
+  });
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+const TOOL_LABELS = {
+  query_world: "Consultando el mundo", show_world_view: "Moviendo el globo",
+  web_search: "Buscando en internet", read_web_page: "Leyendo la página",
+  search_documents: "Buscando en tus documentos", search_files: "Buscando archivos",
+  read_clipboard: "Leyendo el portapapeles", daily_briefing: "Armando el briefing",
+  create_reminder: "Creando el recordatorio", create_world_alert: "Creando la alerta",
+  analyze_screenshot: "Mirando la pantalla", get_system_info: "Revisando el sistema",
+};
+
+/* Chat por Server-Sent Events: onEvent recibe "delta" (texto parcial) y
+   "tool" (herramienta en uso); devuelve el evento final, igual a la respuesta
+   de POST /chat. Se usa fetch y no EventSource porque hay que mandar POST y
+   el header Authorization. */
+async function streamChat(message, onEvent) {
+  const response = await fetch(`${API_URL}/api/v1/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}) },
+    body: JSON.stringify({ message, conversation_id: CONVERSATION_ID }),
+  });
+  if (response.status === 401) {
+    logout();
+    throw new Error("Sesión expirada, iniciá sesión de nuevo.");
+  }
+  if (response.status === 404 || !response.body) {
+    // Backend sin streaming: se usa el chat de siempre.
+    return api("/api/v1/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, conversation_id: CONVERSATION_ID }),
+    });
+  }
+  if (!response.ok) throw new Error(response.statusText || `error ${response.status}`);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let final = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      for (const line of block.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const event = JSON.parse(line.slice(6));
+        if (event.type === "done") final = event;
+        else onEvent(event);
+      }
+    }
+  }
+  if (!final) throw new Error("La respuesta se cortó antes de terminar.");
+  return final;
 }
 
 async function sendChat(message) {
   appendBubble("user", message);
+  const bubble = appendBubble("atlas", "…");
+  bubble.classList.add("pending");
+  const speech = createSpeechStream();
+  let streamed = "";
   try {
-    const result = await api("/api/v1/chat", {
-      method: "POST",
-      body: JSON.stringify({ message, conversation_id: CONVERSATION_ID }),
+    const result = await streamChat(message, (event) => {
+      if (event.type === "delta") {
+        streamed += event.text;
+        bubble.classList.remove("pending");
+        bubble.textContent = streamed;
+        speech.push(event.text);
+      } else if (event.type === "tool") {
+        // Lo dicho antes de usar la herramienta era un preámbulo: la respuesta viene después.
+        streamed = "";
+        bubble.classList.add("pending");
+        bubble.textContent = `${TOOL_LABELS[event.name] || event.name}…`;
+      }
+      chatLog.scrollTop = chatLog.scrollHeight;
     });
     CONVERSATION_ID = result.conversation_id;
+    pollWorldView(); // si la respuesta movió el globo, mostrarlo ya sin esperar al sondeo
     if (result.requires_confirmation) {
+      bubble.remove();
       askConfirmation(result.confirmation_id, result.confirmation_description);
-    } else if (result.reply) {
-      appendBubble("atlas", result.reply);
-      speak(result.reply);
+    } else {
+      bubble.textContent = result.reply || "(sin respuesta)";
+      appendImages(bubble, result.images);
+      speech.finish(result.reply);
     }
   } catch (err) {
-    appendBubble("atlas", `(error: ${err.message})`);
+    bubble.textContent = `(error: ${err.message})`;
   }
+  bubble.classList.remove("pending");
 }
 
 chatForm.addEventListener("submit", (event) => {
@@ -205,7 +316,8 @@ async function resolveConfirmation(approve) {
       method: "POST",
       body: JSON.stringify({ confirmation_id: pendingConfirmationId, approve }),
     });
-    appendBubble("atlas", result.reply);
+    appendImages(appendBubble("atlas", result.reply), result.images);
+    pollWorldView();
   } catch (err) {
     appendBubble("atlas", `(error: ${err.message})`);
   }
@@ -301,6 +413,12 @@ document.getElementById("refresh-automations").addEventListener("click", loadAut
 
 /* ---------- Notificaciones ---------- */
 
+/* El backend guarda las fechas en UTC pero algunas llegan sin zona: sin la
+   "Z" el navegador las tomaría como hora local. */
+function parseServerDate(value) {
+  return new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`);
+}
+
 async function loadNotifications() {
   const list = document.getElementById("notification-list");
   try {
@@ -313,13 +431,16 @@ async function loadNotifications() {
     notifications.forEach((n) => {
       const card = document.createElement("div");
       card.className = "card";
+      // El mensaje puede traer texto de fuentes externas (alertas del mundo):
+      // va por textContent, nunca como HTML.
       card.innerHTML = `
         <div class="card-info">
-          <span class="card-title">${n.message}</span>
-          <span class="badge ${n.read ? "" : "unread"}">${n.read ? "leída" : "nueva"} · ${new Date(n.created_at).toLocaleString()}</span>
+          <span class="card-title"></span>
+          <span class="badge ${n.read ? "" : "unread"}">${n.read ? "leída" : "nueva"} · ${parseServerDate(n.created_at).toLocaleString()}</span>
         </div>
         ${n.read ? "" : '<button class="secondary">Marcar leída</button>'}
       `;
+      card.querySelector(".card-title").textContent = n.message;
       if (!n.read) {
         card.querySelector("button").addEventListener("click", async () => {
           await api(`/api/v1/notifications/${n.id}/read`, { method: "PATCH" });
@@ -564,16 +685,60 @@ orbButton.addEventListener("click", () => {
    visualizador lee el audio real de la respuesta mientras suena, con su
    propio AudioContext (el de grabación ya se cerró para entonces). */
 
-async function speak(text) {
-  let response;
-  try {
-    response = await api("/api/v1/voice/speak", { method: "POST", body: JSON.stringify({ text }) });
-  } catch {
-    return; // la respuesta de texto ya se mostró; el audio es un extra
-  }
-  const blob = await response.blob();
-  const audio = new Audio(URL.createObjectURL(blob));
-  playWithVisualizer(audio);
+/* La voz se reproduce en cola: cada fragmento se pide al backend apenas se
+   conoce (en paralelo) pero suena en orden, sin pisarse. */
+let speechChain = Promise.resolve();
+const SPEECH_TIMEOUT_MS = 90000;
+
+function playAndWait(audio) {
+  return new Promise((resolve) => {
+    if (orbRecording) return resolve(); // playWithVisualizer no reproduce mientras se graba
+    const timer = setTimeout(resolve, SPEECH_TIMEOUT_MS); // por si el navegador bloquea el audio
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    audio.addEventListener("ended", done, { once: true });
+    audio.addEventListener("error", done, { once: true });
+    audio.addEventListener("pause", done, { once: true });
+    playWithVisualizer(audio);
+  });
+}
+
+function speak(text) {
+  const clean = (text || "").trim();
+  if (!clean) return;
+  const audioReady = api("/api/v1/voice/speak", { method: "POST", body: JSON.stringify({ text: clean }) })
+    .then((response) => response.blob())
+    .catch(() => null); // la respuesta de texto ya se mostró; el audio es un extra
+  speechChain = speechChain.then(async () => {
+    const blob = await audioReady;
+    if (blob && blob.size) await playAndWait(new Audio(URL.createObjectURL(blob)));
+  });
+}
+
+/* Lee en voz alta una respuesta mientras llega: corta en finales de frase
+   para empezar a hablar antes de que el modelo termine de escribir. */
+const SPEECH_MIN_CHARS = 40;
+function createSpeechStream() {
+  let buffer = "";
+  let spoke = false;
+  return {
+    push(text) {
+      buffer += text;
+      const ends = [...buffer.matchAll(/[.!?…](?=\s)|\n/g)];
+      const last = ends[ends.length - 1];
+      if (!last || last.index + 1 < SPEECH_MIN_CHARS) return;
+      speak(buffer.slice(0, last.index + 1));
+      buffer = buffer.slice(last.index + 1);
+      spoke = true;
+    },
+    finish(reply) {
+      if (buffer.trim()) speak(buffer);
+      else if (!spoke) speak(reply);
+      buffer = "";
+    },
+  };
 }
 
 function playWithVisualizer(audio) {
@@ -613,3 +778,360 @@ function playWithVisualizer(audio) {
   audio.addEventListener("ended", finish);
   audio.play().then(draw).catch(finish);
 }
+
+/* ---------- Productividad y preferencias de la interfaz ---------- */
+const VIEW_LABELS = {
+  home: ["Inicio", "CENTRO DE CONTROL"], chat: ["Chat", "CONVERSACIÓN CON ATLAS"],
+  devices: ["Dispositivos", "HOGAR CONECTADO"], automations: ["Rutinas", "AUTOMATIZACIÓN"],
+  notifications: ["Notificaciones", "BANDEJA DE AVISOS"], memory: ["Memoria", "CONTEXTO PERSONAL"],
+  activity: ["Actividad", "REGISTRO DEL SISTEMA"],
+  world: ["Mundo en vivo", "INTELIGENCIA GEOESPACIAL"],
+  privacy: ["Privacidad", "QUÉ SALE DE ESTA PC"],
+};
+
+function showToast(message, kind = "success") {
+  const region = document.getElementById("toast-region");
+  if (!region) return;
+  const toast = document.createElement("div");
+  toast.className = `toast ${kind}`;
+  toast.textContent = message;
+  region.appendChild(toast);
+  window.setTimeout(() => toast.remove(), 3600);
+}
+
+function updateViewMeta(view) {
+  const [title, eyebrow] = VIEW_LABELS[view] || ["ATLAS", "PANEL DE CONTROL"];
+  document.getElementById("view-title").textContent = title;
+  document.getElementById("view-eyebrow").textContent = eyebrow;
+}
+
+function openView(view) {
+  const button = document.querySelector(`.nav-button[data-view="${view}"]`);
+  if (button) button.click();
+  updateViewMeta(view);
+}
+
+document.querySelectorAll(".nav-button").forEach((button) => {
+  button.addEventListener("click", () => updateViewMeta(button.dataset.view));
+});
+document.querySelectorAll("[data-quick-view]").forEach((button) => {
+  button.addEventListener("click", () => openView(button.dataset.quickView));
+});
+
+document.getElementById("refresh-all").addEventListener("click", async () => {
+  await Promise.allSettled([loadDevices(), loadAutomations(), loadNotifications(), loadMemory(), loadActivity(), api("/api/v1/system/status").then((status) => { setRing("ring-cpu", "ring-cpu-value", status.cpu_percent); setRing("ring-ram", "ring-ram-value", status.ram_percent); setRing("ring-disk", "ring-disk-value", status.disk_percent); })]);
+  document.getElementById("last-sync").textContent = `Actualizado ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  showToast("Panel actualizado");
+});
+
+document.getElementById("device-search").addEventListener("input", (event) => {
+  const query = event.target.value.trim().toLocaleLowerCase();
+  document.querySelectorAll("#device-list .card").forEach((card) => {
+    card.hidden = query.length > 0 && !card.textContent.toLocaleLowerCase().includes(query);
+  });
+});
+
+const themeToggle = document.getElementById("theme-toggle");
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem("atlas_dashboard_theme", theme);
+  themeToggle.textContent = theme === "light" ? "☾" : "◐";
+  themeToggle.title = theme === "light" ? "Usar tema oscuro" : "Usar tema claro";
+}
+applyTheme(localStorage.getItem("atlas_dashboard_theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+themeToggle.addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
+
+window.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    openView("chat");
+    chatInput.focus();
+  }
+  if (event.key === "Escape" && !confirmDialog.classList.contains("hidden")) resolveConfirmation(false);
+});
+
+const originalCheckConnection = checkConnection;
+checkConnection = async function enhancedConnectionCheck() {
+  await originalCheckConnection();
+  const connected = document.getElementById("connection-status").textContent === "conectado";
+  document.getElementById("last-sync").textContent = connected
+    ? `En línea · ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+    : "Sin conexión";
+};
+/* ---------- Gods Eye View: consola geoespacial integrada ---------- */
+const GODS_EYE_URL = localStorage.getItem("atlas_gods_eye_url") || "http://127.0.0.1:4173";
+const worldFrame = document.getElementById("world-frame");
+const worldEmpty = document.getElementById("world-empty");
+const worldStatus = document.getElementById("world-status");
+const GODS_EYE_ORIGIN = new URL(GODS_EYE_URL).origin;
+let worldLoaded = false;
+let worldReady = false; // el iframe ya avisó que puede recibir vistas (gev:ready)
+let pendingWorldView = null; // vista pedida por ATLAS, a la espera de que el iframe esté listo
+let lastWorldViewId; // undefined hasta el primer sondeo
+
+async function loadWorldView(force = false) {
+  worldStatus.className = "world-status";
+  worldStatus.textContent = "Comprobando servicio…";
+  try {
+    await fetch(GODS_EYE_URL, { mode: "no-cors", cache: "no-store" });
+    worldStatus.className = "world-status online";
+    worldStatus.textContent = "● Conectado localmente";
+    if (!worldLoaded || force) {
+      worldReady = false;
+      worldFrame.src = `${GODS_EYE_URL}/?embed=1`;
+      worldLoaded = true;
+    }
+    worldFrame.hidden = false;
+    worldEmpty.hidden = true;
+  } catch {
+    worldStatus.className = "world-status offline";
+    worldStatus.textContent = "● Servicio no iniciado";
+    worldFrame.hidden = true;
+    worldEmpty.hidden = false;
+  }
+}
+
+document.querySelector('.nav-button[data-view="world"]').addEventListener("click", () => loadWorldView());
+document.getElementById("world-reload").addEventListener("click", () => loadWorldView(true));
+document.getElementById("world-open").addEventListener("click", () => window.open(GODS_EYE_URL, "_blank", "noopener"));
+
+/* ATLAS maneja el globo: las tools show_world_view / query_world dejan una
+   vista en el backend y acá se la pasamos al iframe con el protocolo de
+   embebido de Gods Eye View (gev:view). Se sondea en vez de leerla de la
+   respuesta del chat para que también funcione con pedidos hechos por voz
+   desde el cliente de escritorio o el móvil. */
+const WORLD_VIEW_RETRIES = 3;
+const WORLD_VIEW_RETRY_MS = 1500;
+let sentWorldView = null; // última vista enviada al iframe, por si hay que reintentarla
+
+function sendWorldView() {
+  sentWorldView.attempts += 1;
+  const { id, view } = sentWorldView;
+  worldFrame.contentWindow.postMessage({ type: "gev:view", id, view }, GODS_EYE_ORIGIN);
+}
+
+function flushWorldView() {
+  if (!worldReady || !pendingWorldView) return;
+  sentWorldView = { id: pendingWorldView.id, view: pendingWorldView.view, attempts: 0 };
+  pendingWorldView = null;
+  sendWorldView();
+}
+
+window.addEventListener("message", (event) => {
+  if (event.source !== worldFrame.contentWindow || event.origin !== GODS_EYE_ORIGIN) return;
+  if (event.data?.type === "gev:ready") {
+    worldReady = true;
+    flushWorldView();
+  } else if (event.data?.type === "gev:view-applied" && !event.data.ok) {
+    const failed = (event.data.steps || []).filter((step) => !step.ok).map((step) => step.step);
+    // Recién cargado, el globo todavía hace su propio vuelo inicial y cancela
+    // el nuestro: el paso "camera" falla y queda mirando otro lugar. Se reintenta.
+    const current = sentWorldView && sentWorldView.id === event.data.id;
+    if (current && failed.includes("camera") && sentWorldView.attempts < WORLD_VIEW_RETRIES) {
+      setTimeout(() => {
+        if (sentWorldView && sentWorldView.id === event.data.id && worldReady) sendWorldView();
+      }, WORLD_VIEW_RETRY_MS);
+      return;
+    }
+    showToast(`Gods Eye View no pudo aplicar: ${failed.join(", ") || event.data.error || "la vista"}`, "error");
+  }
+});
+
+async function pollWorldView() {
+  try {
+    const update = await api("/api/v1/world/view");
+    if (lastWorldViewId === undefined) {
+      lastWorldViewId = update.id; // al abrir el dashboard no se repite una vista vieja
+    } else if (update.id && update.id !== lastWorldViewId) {
+      lastWorldViewId = update.id;
+      pendingWorldView = update;
+      openView("world");
+      flushWorldView();
+      if (update.summary) showToast(update.summary);
+    }
+  } catch {
+    /* el próximo sondeo lo reintenta */
+  }
+}
+setInterval(() => {
+  if (TOKEN) pollWorldView();
+}, 2500);
+if (TOKEN) pollWorldView();
+
+/* ---------- Avisos: alertas del mundo, recordatorios y briefing ---------- */
+/* El backend los deja como notificaciones; acá se sondean para mostrarlos (y
+   leerlos en voz alta) apenas aparecen, sin tener que abrir la bandeja. */
+const speakNotificationsToggle = document.getElementById("speak-notifications");
+speakNotificationsToggle.checked = localStorage.getItem("atlas_dashboard_speak_notifications") !== "0";
+speakNotificationsToggle.addEventListener("change", () => {
+  localStorage.setItem("atlas_dashboard_speak_notifications", speakNotificationsToggle.checked ? "1" : "0");
+});
+
+let knownNotificationIds = null; // null hasta el primer sondeo: lo que ya había no se anuncia
+
+function setUnreadCount(count) {
+  const button = document.querySelector('.nav-button[data-view="notifications"]');
+  let badge = button.querySelector(".nav-count");
+  if (!count) {
+    if (badge) badge.remove();
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "nav-count";
+    button.appendChild(badge);
+  }
+  badge.textContent = count > 99 ? "99+" : String(count);
+}
+
+async function pollNotifications() {
+  let unread;
+  try {
+    unread = await api("/api/v1/notifications?unread_only=true");
+  } catch {
+    return; // el próximo sondeo lo reintenta
+  }
+  setUnreadCount(unread.length);
+  const fresh = knownNotificationIds ? unread.filter((n) => !knownNotificationIds.has(n.id)) : [];
+  knownNotificationIds = new Set([...(knownNotificationIds || []), ...unread.map((n) => n.id)]);
+  if (!fresh.length) return;
+  fresh.reverse().forEach((n) => {
+    showToast(n.message);
+    if (speakNotificationsToggle.checked) speak(n.message.replace(/^[^\p{L}\p{N}]+/u, "")); // sin el emoji inicial
+  });
+  loadNotifications();
+  loadReminders(); // un recordatorio que acaba de sonar ya no está pendiente
+}
+setInterval(() => {
+  if (TOKEN) pollNotifications();
+}, 5000);
+if (TOKEN) pollNotifications();
+
+/* Tarjeta con título, detalle y un botón opcional; todo por textContent. */
+function buildCard(title, detail, action) {
+  const card = document.createElement("div");
+  card.className = "card";
+  const info = document.createElement("div");
+  info.className = "card-info";
+  const titleEl = document.createElement("span");
+  titleEl.className = "card-title";
+  titleEl.textContent = title;
+  const detailEl = document.createElement("span");
+  detailEl.className = "badge";
+  detailEl.textContent = detail;
+  info.append(titleEl, detailEl);
+  card.appendChild(info);
+  if (action) {
+    const button = document.createElement("button");
+    button.className = "secondary";
+    button.textContent = action.label;
+    button.addEventListener("click", action.onClick);
+    card.appendChild(button);
+  }
+  return card;
+}
+
+function renderEmpty(list, text) {
+  list.replaceChildren();
+  const empty = document.createElement("div");
+  empty.className = "empty-state";
+  empty.textContent = text;
+  list.appendChild(empty);
+}
+
+async function loadReminders() {
+  const list = document.getElementById("reminder-list");
+  try {
+    const reminders = await api("/api/v1/reminders");
+    if (!reminders.length) {
+      renderEmpty(list, 'Sin recordatorios. Probá: "recordame sacar la pizza en 20 minutos".');
+      return;
+    }
+    list.replaceChildren(
+      ...reminders.map((r) => {
+        const repeat = { daily: " · todos los días", weekdays: " · lunes a viernes", weekly: " · cada semana" }[r.repeat] || "";
+        return buildCard(r.message, `${parseServerDate(r.due_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}${repeat}`, {
+          label: "Cancelar",
+          onClick: async () => {
+            await api(`/api/v1/reminders/${r.id}`, { method: "DELETE" });
+            loadReminders();
+          },
+        });
+      })
+    );
+  } catch (err) {
+    renderEmpty(list, `Error cargando recordatorios: ${err.message}`);
+  }
+}
+
+async function loadWorldAlerts() {
+  const list = document.getElementById("world-alert-list");
+  try {
+    const alerts = await api("/api/v1/world/alerts");
+    if (!alerts.length) {
+      renderEmpty(list, 'Sin alertas. Probá: "avisame si hay un terremoto mayor a 5 cerca de Chile".');
+      return;
+    }
+    list.replaceChildren(
+      ...alerts.map((a) => {
+        const checked = a.last_checked_at
+          ? `última revisión ${parseServerDate(a.last_checked_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+          : "todavía sin revisar";
+        return buildCard(a.description, `cada ${a.interval_minutes} min · ${checked}`, {
+          label: "Borrar",
+          onClick: async () => {
+            await api(`/api/v1/world/alerts/${a.id}`, { method: "DELETE" });
+            loadWorldAlerts();
+          },
+        });
+      })
+    );
+  } catch (err) {
+    renderEmpty(list, `Error cargando alertas: ${err.message}`);
+  }
+}
+
+/* ---------- Privacidad ---------- */
+const PRIVACY_LABELS = { local: "No sale de esta PC", network: "Tu red local", external: "Sale a internet", off: "Sin uso" };
+
+async function loadPrivacy() {
+  const list = document.getElementById("privacy-list");
+  try {
+    const report = await api("/api/v1/system/privacy");
+    list.replaceChildren(
+      ...report.flows.map((flow) => {
+        const card = document.createElement("div");
+        card.className = "card privacy-card";
+        if (flow.area === "Acceso a ATLAS" && !report.auth_enabled) card.classList.add("privacy-warning");
+        const info = document.createElement("div");
+        info.className = "card-info";
+        const title = document.createElement("span");
+        title.className = "card-title";
+        title.textContent = flow.area;
+        const provider = document.createElement("span");
+        provider.className = "privacy-provider";
+        provider.textContent = flow.provider;
+        const sends = document.createElement("span");
+        sends.className = "privacy-sends";
+        sends.textContent = flow.sends;
+        info.append(title, provider, sends);
+        const badge = document.createElement("span");
+        badge.className = `badge ${flow.destination}`;
+        badge.textContent = PRIVACY_LABELS[flow.destination] || flow.destination;
+        card.append(info, badge);
+        return card;
+      })
+    );
+  } catch (err) {
+    renderEmpty(list, `Error cargando el informe: ${err.message}`);
+  }
+}
+
+/* Estas listas se cargan al entrar a su vista (y con su botón Actualizar). */
+const VIEW_LOADERS = { automations: loadReminders, world: loadWorldAlerts, privacy: loadPrivacy };
+Object.entries(VIEW_LOADERS).forEach(([view, load]) => {
+  document.querySelector(`.nav-button[data-view="${view}"]`).addEventListener("click", load);
+});
+document.getElementById("refresh-reminders").addEventListener("click", loadReminders);
+document.getElementById("refresh-world-alerts").addEventListener("click", loadWorldAlerts);
+document.getElementById("refresh-privacy").addEventListener("click", loadPrivacy);

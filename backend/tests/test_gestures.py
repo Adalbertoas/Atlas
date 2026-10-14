@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+import pytest
+
 from app.gestures.mouse_controller import MouseController
 from app.security.auth import create_access_token, is_token_valid
+
+
+@pytest.fixture(autouse=True)
+def _primary_screen(monkeypatch):
+    monkeypatch.setattr(
+        "app.gestures.mouse_controller._virtual_screen_bounds", lambda: (0, 0, 1000, 500)
+    )
 
 
 def test_update_moves_mouse_to_mapped_screen_position(monkeypatch):
@@ -31,6 +40,23 @@ def test_update_clamps_out_of_range_coordinates(monkeypatch):
     x, y = moves[0]
     assert 0 <= x <= 1000
     assert 0 <= y <= 500
+
+
+def test_update_maps_to_entire_virtual_desktop(monkeypatch):
+    monkeypatch.setattr(
+        "app.gestures.mouse_controller._virtual_screen_bounds", lambda: (-1920, 0, 3840, 1080)
+    )
+    moves = []
+    monkeypatch.setattr("app.gestures.mouse_controller.pyautogui.moveTo", lambda x, y: moves.append((x, y)))
+
+    controller = MouseController()
+    controller.update(x_norm=0.0, y_norm=0.5, pinching=False)
+
+    assert moves == [(-1920, 539)]
+
+    controller = MouseController()
+    controller.update(x_norm=1.0, y_norm=0.5, pinching=False)
+    assert moves[-1] == (1919, 539)
 
 
 def test_pinching_triggers_mouse_down_once(monkeypatch):

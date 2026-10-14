@@ -94,7 +94,9 @@
           Usa las dos manos: con una movés el índice para mover el cursor de tu PC
           y juntás el pulgar y el índice (pellizco) para hacer clic o arrastrar.
           Con la otra hacés puño cerrado y lo movés arriba/abajo para hacer scroll.
-          La cámara se apaga sola si salís de esta pestaña o tocás "Desactivar".
+          Atlas prioriza WebGPU para una respuesta más fluida y usa modo compatible
+          cuando tu celular no lo soporta. La cámara se apaga sola si salís de esta
+          pestaña o tocás "Desactivar".
         </p>
         <div class="gestures-camera-wrap">
           <video id="gestures-video" playsinline muted class="hidden"></video>
@@ -102,6 +104,13 @@
           <div id="gestures-status" class="gestures-status">Cámara apagada</div>
         </div>
         <button id="gestures-toggle" class="gestures-toggle-button">🖐️ Activar control por gestos</button>
+        <div class="gesture-calibration-actions">
+          <button id="gestures-calibrate" class="gesture-secondary-button" type="button">🎯 Calibrar alcance</button>
+          <button id="gestures-reset-calibration" class="gesture-secondary-button" type="button">Restablecer</button>
+        </div>
+        <p id="gestures-calibration-help" class="gestures-calibration-help">
+          Calibrá una vez para que el movimiento cómodo de tu mano alcance todas tus pantallas.
+        </p>
       </div>
     </main>
 

@@ -8,7 +8,7 @@ error, para que el Orchestrator pueda responder con naturalidad.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -26,10 +26,19 @@ class ToolContext:
 
 
 @dataclass
+class ToolImage:
+    """Imagen que una tool devuelve para mostrarle al usuario (no va al modelo)."""
+
+    mime_type: str
+    data: str  # base64
+
+
+@dataclass
 class ToolResult:
     success: bool
     data: Any = None
     error: str | None = None
+    images: list[ToolImage] = field(default_factory=list)
 
     def as_text(self) -> str:
         if self.success:

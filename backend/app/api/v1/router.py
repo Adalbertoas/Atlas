@@ -10,12 +10,14 @@ from app.api.v1 import (
     gestures,
     memory,
     notifications,
+    reminders,
     rooms,
     settings,
     system,
     tools,
     vision,
     voice,
+    world,
 )
 from app.security.auth import get_current_user
 
@@ -39,6 +41,8 @@ api_router.include_router(devices.router, dependencies=[_protected])
 api_router.include_router(automations.router, dependencies=[_protected])
 api_router.include_router(notifications.router)  # ya protegido endpoint por endpoint (ver notifications.py)
 api_router.include_router(vision.router, dependencies=[_protected])
+api_router.include_router(world.router, dependencies=[_protected])
+api_router.include_router(reminders.router, dependencies=[_protected])
 
 # El WebSocket de gestos se autentica solo (el primer mensaje trae el
 # token) — HTTPBearer (usado por get_current_user) no aplica a handshakes

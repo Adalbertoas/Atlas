@@ -37,3 +37,27 @@ def test_get_current_user_rejects_garbage_token():
     with pytest.raises(HTTPException) as exc_info:
         get_current_user(credentials)
     assert exc_info.value.status_code == 401
+
+
+@pytest.fixture()
+def auth_disabled(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "auth_enabled", False)
+
+
+def test_auth_disabled_accepts_any_password(auth_disabled):
+    assert verify_password("") is True
+    assert verify_password("algo-incorrecto") is True
+
+
+def test_auth_disabled_skips_token_checks(auth_disabled):
+    from app.security.auth import is_token_valid
+
+    assert get_current_user(None) == "local_user"
+    assert is_token_valid("") is True
+
+
+def test_auth_disabled_opens_protected_endpoints(client, auth_disabled):
+    response = client.get("/api/v1/notifications")
+    assert response.status_code != 401

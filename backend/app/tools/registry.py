@@ -47,6 +47,19 @@ def build_default_registry() -> ToolRegistry:
     from app.tools.system.get_system_info import GetSystemInfoTool
     from app.tools.system.list_processes import ListProcessesTool
     from app.tools.vision.analyze_screenshot import AnalyzeScreenshotTool
+    from app.config import get_settings
+    from app.tools.briefing.daily_briefing import DailyBriefingTool
+    from app.tools.computer.clipboard import ReadClipboardTool, WriteClipboardTool
+    from app.tools.computer.manage_window import ManageWindowTool
+    from app.tools.computer.save_screenshot import SaveScreenshotTool
+    from app.tools.filesystem.search_documents import SearchDocumentsTool
+    from app.tools.reminders.reminder_tools import CancelReminderTool, CreateReminderTool, ListRemindersTool
+    from app.tools.web.web_tools import ReadWebPageTool, WebSearchTool
+    from app.tools.world.alerts import CreateWorldAlertTool, DeleteWorldAlertTool, ListWorldAlertsTool
+    from app.tools.world.query_world import QueryWorldTool
+    from app.tools.world.show_world_view import ShowWorldViewTool
+    from app.world.client import get_gods_eye_client
+    from app.world.state import world_view_state
     from app.events.bus import event_bus
     from app.smart_home.provider_factory import get_smart_home_provider
     from app.vision.provider_factory import get_vision_provider
@@ -71,8 +84,32 @@ def build_default_registry() -> ToolRegistry:
         SetDeviceStateTool(smart_home_provider, event_bus),
         ControlRoomTool(smart_home_provider, event_bus),
         AnalyzeScreenshotTool(vision_provider),
+        ReadClipboardTool(),
+        WriteClipboardTool(),
+        ManageWindowTool(),
+        SaveScreenshotTool(),
+        SearchDocumentsTool(),
+        CreateReminderTool(),
+        ListRemindersTool(),
+        CancelReminderTool(),
     ):
         registry.register(tool)
+
+    settings = get_settings()
+    if settings.web_enabled:
+        registry.register(WebSearchTool(settings.brave_api_key))
+        registry.register(ReadWebPageTool())
+
+    gods_eye_client = get_gods_eye_client()
+    if gods_eye_client is not None:
+        registry.register(QueryWorldTool(gods_eye_client, world_view_state))
+        registry.register(ShowWorldViewTool(gods_eye_client, world_view_state))
+        registry.register(CreateWorldAlertTool())
+        registry.register(ListWorldAlertsTool())
+        registry.register(DeleteWorldAlertTool())
+
+    # Sin Gods Eye View el briefing sale igual, solo que sin el clima.
+    registry.register(DailyBriefingTool(gods_eye_client, settings.home_place, event_bus))
 
     # run_routine se registra al final: necesita una referencia al propio
     # registry (para resolver las tools de cada acción de la rutina) —

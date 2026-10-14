@@ -392,3 +392,32 @@ details {
   font-size: 0.95rem;
   cursor: pointer;
 }
+
+.gesture-calibration-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.gesture-secondary-button {
+  padding: 11px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gesture-secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.gestures-calibration-help {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 10px 2px 0;
+}

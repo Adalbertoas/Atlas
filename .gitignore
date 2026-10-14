@@ -41,3 +41,6 @@ certs/
 ## Misc
 *.tmp
 .env.local
+
+## Herramientas locales (Blender, etc.)
+.tools/

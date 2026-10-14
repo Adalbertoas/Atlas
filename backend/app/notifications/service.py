@@ -25,8 +25,15 @@ def mark_read(db: Session, notification_id: int) -> bool:
     return True
 
 
+def notify(events: EventBus, message: str) -> None:
+    """Crea una notificación con un texto ya redactado (alertas, recordatorios, briefing)."""
+    events.publish(Event(type=EventType.NOTIFICATION_CREATED, payload={"message": message}))
+
+
 def _format_message(event: Event) -> str:
     payload = event.payload
+    if "message" in payload:
+        return str(payload["message"])
     if event.type == EventType.NOTIFICATION_CREATED and "routine" in payload:
         return f"Rutina '{payload['routine']}': {payload.get('reason', 'requiere tu atención.')}"
     return str(payload)

@@ -97,8 +97,28 @@ async function checkConnection() {
   }
 }
 
+/* Si el backend tiene el login desactivado (AUTH_ENABLED=false), acepta
+   cualquier contraseña: se entra solo sin mostrar el formulario. Si no, el
+   login falla y queda la pantalla de contraseña como siempre. */
+async function tryAutoLogin() {
+  try {
+    const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: "" }),
+    });
+    if (!response.ok) return;
+    TOKEN = (await response.json()).access_token;
+    localStorage.setItem("atlas_token", TOKEN);
+    enterApp();
+  } catch {
+    /* backend inalcanzable — queda la pantalla de login */
+  }
+}
+
 /* Si ya había un token guardado, entrar directo sin pedir contraseña de nuevo. */
 if (TOKEN) enterApp();
+else tryAutoLogin();
 
 /* ---------- Navegación por tabs ---------- */
 
@@ -415,11 +435,18 @@ document.getElementById("refresh-memory").addEventListener("click", loadMemory);
 const MEDIAPIPE_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 const HAND_MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+// Pinned WebGPU hand-tracking pipeline. It is preferred when the phone can
+// run WebGPU and falls back to the existing compatibility engine otherwise.
+const WEBGPU_VISION_COMMIT = "672367e2e7210cbb8bf3d2e0bf85c5f263e11dd1";
+const WEBGPU_TRACKER_URL =
+  `https://cdn.jsdelivr.net/gh/Sonified/webgpu-vision@${WEBGPU_VISION_COMMIT}/src/pipeline.js`;
 // Umbral del pellizco como fracción del tamaño de la mano (muñeca→nudillo medio),
 // no como distancia fija — así funciona igual sin importar qué tan cerca de la
 // cámara esté la mano (una distancia normalizada fija era muy estricta cuando
 // la mano estaba lejos, porque todo se achica junto con ella).
 const PINCH_RATIO = 0.55;
+const GESTURE_CALIBRATION_KEY = "atlas_gesture_calibration_v1";
+const CALIBRATION_CAPTURE_MS = 2200;
 const CURLED_RATIO = 0.9; // qué tan más cerca de la muñeca debe estar la punta que el nudillo (dedo doblado = puño)
 
 let scrollPrevY = null; // posición anterior del gesto de scroll, para calcular el delta entre frames
@@ -429,12 +456,166 @@ const gesturesCanvas = document.getElementById("gestures-canvas");
 const gesturesCtx = gesturesCanvas.getContext("2d");
 const gesturesStatus = document.getElementById("gestures-status");
 const gesturesToggle = document.getElementById("gestures-toggle");
+const gesturesCalibrate = document.getElementById("gestures-calibrate");
+const gesturesResetCalibration = document.getElementById("gestures-reset-calibration");
+const gesturesCalibrationHelp = document.getElementById("gestures-calibration-help");
 
 let gesturesActive = false;
 let gesturesStream = null;
 let gesturesSocket = null;
 let handLandmarker = null;
+let gestureEngine = null;
 let gesturesRafId = null;
+let gestureFrameBusy = false;
+let latestGestureResult = { landmarks: [], handedness: [] };
+let latestCursorPoint = null;
+let calibrationStep = null;
+let calibrationSamples = [];
+let calibrationFirstCorner = null;
+let calibrationTimer = null;
+
+function readGestureCalibration() {
+  try {
+    const calibration = JSON.parse(localStorage.getItem(GESTURE_CALIBRATION_KEY) || "null");
+    if (!calibration || !Number.isFinite(calibration.minX) || !Number.isFinite(calibration.maxX)
+      || !Number.isFinite(calibration.minY) || !Number.isFinite(calibration.maxY)
+      || calibration.maxX - calibration.minX < 0.08 || calibration.maxY - calibration.minY < 0.08) return null;
+    return calibration;
+  } catch {
+    return null;
+  }
+}
+
+function clampUnit(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function mapCursorPoint(rawX, rawY) {
+  const calibration = readGestureCalibration();
+  if (!calibration) return { x: rawX, y: rawY };
+  return {
+    x: clampUnit((rawX - calibration.minX) / (calibration.maxX - calibration.minX)),
+    y: clampUnit((rawY - calibration.minY) / (calibration.maxY - calibration.minY)),
+  };
+}
+
+function updateCalibrationControls() {
+  gesturesCalibrate.disabled = !gesturesActive || (calibrationStep !== null && calibrationStep !== "second");
+  gesturesResetCalibration.disabled = !readGestureCalibration();
+  if (calibrationStep === "first") {
+    gesturesCalibrate.textContent = "Esperando esquina 1…";
+  } else if (calibrationStep === "capturing") {
+    gesturesCalibrate.textContent = "Esperando esquina 2…";
+  } else if (calibrationStep === "second") {
+    gesturesCalibrate.textContent = "Capturar esquina 2";
+  } else {
+    gesturesCalibrate.textContent = readGestureCalibration() ? "🎯 Recalibrar alcance" : "🎯 Calibrar alcance";
+  }
+}
+
+function cancelCalibration(message = null) {
+  if (calibrationTimer) clearTimeout(calibrationTimer);
+  calibrationTimer = null;
+  calibrationStep = null;
+  calibrationSamples = [];
+  calibrationFirstCorner = null;
+  if (message) gesturesCalibrationHelp.textContent = message;
+  updateCalibrationControls();
+}
+
+function finishCalibrationCapture() {
+  calibrationTimer = null;
+  if (calibrationSamples.length < 6) {
+    cancelCalibration("No vi tu mano el tiempo suficiente. Intentá otra vez con buena luz.");
+    return;
+  }
+  const point = calibrationSamples.reduce(
+    (total, sample) => ({ x: total.x + sample.x, y: total.y + sample.y }), { x: 0, y: 0 }
+  );
+  point.x /= calibrationSamples.length;
+  point.y /= calibrationSamples.length;
+
+  if (calibrationStep === "first") {
+    calibrationFirstCorner = point;
+    calibrationStep = "second";
+    gesturesCalibrationHelp.textContent = "Esquina 1 guardada. Llevá tu mano abajo a la derecha y tocá “Capturar esquina 2”.";
+    updateCalibrationControls();
+    return;
+  }
+
+  const calibration = {
+    minX: Math.min(calibrationFirstCorner.x, point.x), maxX: Math.max(calibrationFirstCorner.x, point.x),
+    minY: Math.min(calibrationFirstCorner.y, point.y), maxY: Math.max(calibrationFirstCorner.y, point.y),
+  };
+  if (calibration.maxX - calibration.minX < 0.08 || calibration.maxY - calibration.minY < 0.08) {
+    cancelCalibration("Las esquinas quedaron muy cerca. Repetí usando un rango más amplio.");
+    return;
+  }
+  localStorage.setItem(GESTURE_CALIBRATION_KEY, JSON.stringify(calibration));
+  cancelCalibration("Alcance calibrado. Tu rango de mano ahora cubre todo el escritorio virtual.");
+}
+
+function captureCalibrationCorner() {
+  if (!gesturesActive) {
+    gesturesCalibrationHelp.textContent = "Primero activá el control por gestos.";
+    return;
+  }
+  if (calibrationStep === "second") {
+    calibrationStep = "capturing";
+    calibrationSamples = [];
+    gesturesCalibrationHelp.textContent = "Mantené la mano abajo a la derecha durante 2 segundos…";
+  } else {
+    calibrationStep = "first";
+    calibrationSamples = [];
+    gesturesCalibrationHelp.textContent = "Mantené la mano arriba a la izquierda durante 2 segundos…";
+  }
+  calibrationTimer = setTimeout(finishCalibrationCapture, CALIBRATION_CAPTURE_MS);
+  updateCalibrationControls();
+}
+
+async function loadGestureEngine() {
+  if (gestureEngine) return gestureEngine;
+
+  if (navigator.gpu && "VideoFrame" in window) {
+    try {
+      gesturesStatus.textContent = "Preparando motor WebGPU de alta precision...";
+      const { HandTracker } = await import(WEBGPU_TRACKER_URL);
+      const tracker = new HandTracker();
+      await tracker.init((message) => {
+        gesturesStatus.textContent = `WebGPU: ${message}`;
+      }, { variant: "large-f16", palmEngine: "wgsl" });
+      gestureEngine = {
+        name: "WebGPU",
+        async detect(video) {
+          const result = await tracker.processFrame(video);
+          return (result.hands || []).filter(Boolean);
+        },
+        dispose() {
+          tracker.palmWorker?.terminate?.();
+          tracker.landmarkWorkers?.forEach((worker) => worker.worker?.terminate?.());
+        },
+      };
+      return gestureEngine;
+    } catch (err) {
+      console.warn("WebGPU gestures unavailable; switching to compatibility engine.", err);
+    }
+  }
+
+  gesturesStatus.textContent = "Usando motor compatible de deteccion...";
+  const landmarker = await loadHandLandmarker();
+  gestureEngine = {
+    name: "Compatible",
+    detect(video) {
+      const result = landmarker.detectForVideo(video, performance.now());
+      return (result.landmarks || []).map((landmarks, index) => ({
+        landmarks,
+        handedness: result.handedness?.[index]?.[0]?.categoryName || null,
+      }));
+    },
+    dispose() {},
+  };
+  return gestureEngine;
+}
 
 async function loadHandLandmarker() {
   if (handLandmarker) return handLandmarker;
@@ -471,7 +652,7 @@ async function startGestures() {
   gesturesCanvas.height = gesturesVideo.videoHeight || 360;
 
   try {
-    await loadHandLandmarker();
+    await loadGestureEngine();
   } catch (err) {
     gesturesStatus.textContent = `No pude cargar el modelo de manos: ${err.message}`;
     stopGestures();
@@ -489,7 +670,8 @@ async function startGestures() {
 
   gesturesActive = true;
   gesturesToggle.textContent = "🖐️ Desactivar control por gestos";
-  gesturesStatus.textContent = "Buscando tu mano…";
+  gesturesStatus.textContent = `${gestureEngine.name}: buscando tu mano…`;
+  updateCalibrationControls();
   detectLoop();
 }
 
@@ -505,6 +687,12 @@ function stopGestures() {
     gesturesStream.getTracks().forEach((t) => t.stop());
     gesturesStream = null;
   }
+  gestureEngine?.dispose?.();
+  gestureEngine = null;
+  gestureFrameBusy = false;
+  latestGestureResult = { landmarks: [], handedness: [] };
+  latestCursorPoint = null;
+  cancelCalibration();
   gesturesCtx.clearRect(0, 0, gesturesCanvas.width, gesturesCanvas.height);
   gesturesStatus.textContent = "Cámara apagada";
   gesturesToggle.textContent = "🖐️ Activar control por gestos";
@@ -513,9 +701,21 @@ function stopGestures() {
 function detectLoop() {
   if (!gesturesActive) return;
   gesturesRafId = requestAnimationFrame(detectLoop);
-  if (!handLandmarker || gesturesVideo.readyState < 2) return;
+  if (!gestureEngine || gesturesVideo.readyState < 2 || gestureFrameBusy) return;
 
-  const result = handLandmarker.detectForVideo(gesturesVideo, performance.now());
+  // The WebGPU path returns asynchronously. Retain the last complete frame
+  // while the next inference runs so the cursor never stalls the UI thread.
+  gestureFrameBusy = true;
+  Promise.resolve(gestureEngine.detect(gesturesVideo))
+    .then((hands) => {
+      latestGestureResult = {
+        landmarks: hands.map((hand) => hand.landmarks),
+        handedness: hands.map((hand) => hand.handedness ? [{ categoryName: hand.handedness }] : []),
+      };
+    })
+    .catch((err) => console.warn("Gesture frame failed", err))
+    .finally(() => { gestureFrameBusy = false; });
+  const result = latestGestureResult;
   gesturesCtx.save();
   gesturesCtx.clearRect(0, 0, gesturesCanvas.width, gesturesCanvas.height);
   // Espejado: cámara frontal "selfie" — así mover la mano hacia tu derecha
@@ -580,17 +780,24 @@ function detectLoop() {
         // desplazaba el cursor justo al querer hacer clic con la mano quieta.
         // El nudillo casi no se mueve durante el pellizco.
         const cursorPoint = hand[5];
+        const rawCursor = { x: 1 - cursorPoint.x, y: cursorPoint.y };
+        latestCursorPoint = rawCursor;
+        if (calibrationStep === "first" || calibrationStep === "capturing") {
+          calibrationSamples.push(rawCursor);
+          if (calibrationSamples.length > 90) calibrationSamples.shift();
+        }
+        const mappedCursor = mapCursorPoint(rawCursor.x, rawCursor.y);
         statusParts.push(pinching ? "Pellizco (clic)" : "Cursor");
-        if (gesturesSocket && gesturesSocket.readyState === WebSocket.OPEN) {
+        if (!calibrationStep && gesturesSocket && gesturesSocket.readyState === WebSocket.OPEN) {
           gesturesSocket.send(
-            JSON.stringify({ x: 1 - cursorPoint.x, y: cursorPoint.y, pinching }) // 1-x: coherente con el espejado
+            JSON.stringify({ x: mappedCursor.x, y: mappedCursor.y, pinching })
           );
         }
       }
     }
-    gesturesStatus.textContent = statusParts.join(" · ");
+    gesturesStatus.textContent = `${gestureEngine.name}: ${statusParts.join(" · ")}`;
   } else {
-    gesturesStatus.textContent = "Buscando tu mano…";
+    gesturesStatus.textContent = `${gestureEngine.name}: buscando tu mano…`;
   }
   if (!sawScrollHand) scrollPrevY = null;
   gesturesCtx.restore();
@@ -600,6 +807,14 @@ gesturesToggle.addEventListener("click", () => {
   if (gesturesActive) stopGestures();
   else startGestures();
 });
+
+gesturesCalibrate.addEventListener("click", captureCalibrationCorner);
+gesturesResetCalibration.addEventListener("click", () => {
+  localStorage.removeItem(GESTURE_CALIBRATION_KEY);
+  gesturesCalibrationHelp.textContent = "Calibración eliminada. Atlas volvió al rango completo de la cámara.";
+  updateCalibrationControls();
+});
+updateCalibrationControls();
 
 /* ---------- Service worker (PWA instalable) ---------- */
 

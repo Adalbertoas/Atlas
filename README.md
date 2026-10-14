@@ -134,6 +134,31 @@ Claude real. Ver `docs/architecture.md` para el detalle fase por fase y
   `mobile/` y `dashboard/`, sin parecerse a Iron Man/Marvel.
 - 85 tests backend.
 
+**Después de las 9 fases:**
+- **Mundo**: globo 3D de Gods Eye View integrado y manejado por ATLAS
+  (consultas en vivo, seguir aviones y satélites, marcas, imágenes y
+  alertas). Ver `docs/gods-eye-view-integration.md`.
+- **Varias herramientas por pedido**: "apagá la luz y poné música" ejecuta
+  las dos. Si una pide confirmación, las que venían después no se ejecutan.
+- **Chat en streaming** (`POST /api/v1/chat/stream`, Server-Sent Events): el
+  texto y la voz salen mientras el modelo escribe. El dashboard lo usa; el
+  móvil y el escritorio siguen con `POST /chat`.
+- **Recordatorios y temporizadores** (`create_reminder`): "recordame X en 20
+  minutos", "todos los lunes a las 9". Llegan como notificación.
+- **Briefing diario** (`daily_briefing`): fecha, clima, recordatorios,
+  rutinas, avisos y memoria. Con `BRIEFING_TIME=08:00` llega solo cada día;
+  `HOME_PLACE` define el lugar del clima.
+- **PC**: `read_clipboard`, `write_clipboard`, `manage_window` (mitades de
+  pantalla, maximizar, minimizar), `save_screenshot` y `search_documents`
+  (busca dentro de texto, Word y PDF).
+- **Internet**: `web_search` y `read_web_page`. Sin `BRAVE_API_KEY` la
+  búsqueda depende de DuckDuckGo, que suele bloquear a los programas; ahí
+  solo responde Wikipedia. Las direcciones internas (esta PC, tu red) se
+  rechazan.
+- **Privacidad** (`GET /api/v1/system/privacy` y vista del dashboard): qué
+  datos salen de la PC y a dónde, según la configuración activa.
+- 202 tests backend.
+
 ## Estructura
 
 ```
@@ -192,6 +217,16 @@ python run.py
 
 El servidor queda en `http://127.0.0.1:8000`. Documentación interactiva
 (Swagger) en `http://127.0.0.1:8000/docs`.
+
+Para levantar todo junto (backend, dashboard, móvil y Mundo) en una sola
+ventana, desde la raíz del proyecto:
+
+```powershell
+.\atlas.bat              # o: python scripts\start_atlas.py
+.\atlas.bat --desktop    # además el cliente de escritorio
+```
+
+Ctrl+C detiene todo. Los servicios que ya estén corriendo se respetan.
 
 ## Configurar variables de entorno
 
@@ -326,12 +361,29 @@ celular tiene que quedar apoyado/fijo, viendo tus dos manos:
   arrastra.
 - **Mano izquierda**: puño cerrado, moviéndolo arriba/abajo, hace scroll.
 
-La detección de manos corre en el navegador (MediaPipe Tasks Vision,
-cargado desde CDN — único recurso externo del proyecto) y solo manda
-coordenadas por WebSocket (`/api/v1/gestures/stream`), nunca video. El
-backend mueve el mouse real de esa PC con `pyautogui`. No pasa por el
-Permission Manager ni por la IA: es entrada de bajo nivel, como un mouse
-físico. La cámara se apaga sola al salir de la pestaña.
+El cursor abarca el **escritorio virtual completo**: con dos o más monitores,
+la mano llega a todas las pantallas, incluso si alguna está ubicada a la
+izquierda o arriba de la principal en la configuración de Windows.
+
+Si el cursor no coincide con el alcance de tu cámara, con Gestos activo tocá
+**Calibrar alcance**: mantené la mano en la esquina superior izquierda cómoda
+durante dos segundos, y repetí abajo a la derecha. ATLAS expande ese rango al
+escritorio virtual completo y guarda el ajuste en tu celular. **Restablecer**
+vuelve al mapeo sin calibrar.
+
+La detección de manos corre en el navegador con un pipeline WebGPU de dos
+manos (detector de palma y landmarks en workers paralelos). En celulares sin
+WebGPU, ATLAS cambia automáticamente al motor compatible MediaPipe para no
+perder el control. Solo manda coordenadas por WebSocket
+(`/api/v1/gestures/stream`), nunca video. El backend mueve el mouse real de
+esa PC con `pyautogui`. No pasa por el Permission Manager ni por la IA: es
+entrada de bajo nivel, como un mouse físico. La cámara se apaga sola al salir
+de la pestaña.
+
+El motor WebGPU está fijado a una revisión de
+[`Sonified/webgpu-vision`](https://github.com/Sonified/webgpu-vision) (MIT);
+sus modelos de mano se distribuyen bajo Apache-2.0. Se carga únicamente al
+activar Gestos en un navegador compatible.
 
 ## Cómo usar el dashboard (Fase 9)
 
