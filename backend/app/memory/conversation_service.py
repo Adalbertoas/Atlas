@@ -11,7 +11,8 @@ def get_history(db: Session, conversation_id: str, limit: int = 20) -> list[Conv
     rows = (
         db.query(ConversationMessage)
         .filter(ConversationMessage.conversation_id == conversation_id)
-        .order_by(ConversationMessage.created_at.desc())
+        # id desempata los mensajes guardados en el mismo instante (pregunta y respuesta rápidas).
+        .order_by(ConversationMessage.created_at.desc(), ConversationMessage.id.desc())
         .limit(limit)
         .all()
     )

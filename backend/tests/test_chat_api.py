@@ -116,6 +116,7 @@ def test_tools_endpoint_lists_all_base_tools(client, auth_headers):
         "search_documents",
         "web_search",
         "read_web_page",
+        "generate_image",
         "get_system_info",
         "open_application",
         "close_application",
@@ -132,6 +133,14 @@ def test_tools_endpoint_lists_all_base_tools(client, auth_headers):
         "control_room",
         "run_routine",
         "analyze_screenshot",
+        "calculate",
+        "generate_password",
+        "open_website",
+        "set_volume",
+        "lock_computer",
+        "get_weather",
+        "get_news",
+        "convert_currency",
     }
 
 

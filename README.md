@@ -157,7 +157,33 @@ Claude real. Ver `docs/architecture.md` para el detalle fase por fase y
   rechazan.
 - **Privacidad** (`GET /api/v1/system/privacy` y vista del dashboard): qué
   datos salen de la PC y a dónde, según la configuración activa.
-- 202 tests backend.
+
+**Día a día, personalidad y escritorio renovado (noviembre 2026):**
+- **Tools nuevas sin claves de API**: `get_weather` (Open-Meteo, actual + 7
+  días), `get_news` (Google News RSS en español, por tema o búsqueda),
+  `convert_currency` (open.er-api.com, con caché de 1 h), `calculate`
+  (calculadora segura sin `eval`, entiende "15% de 200"), `generate_password`,
+  `open_website` (solo http/https), `set_volume` (porcentaje exacto) y
+  `lock_computer`. Las tres que usan internet dependen de `WEB_ENABLED`.
+- **Personalidad ampliada** (`/api/v1/settings/personality`): nombre del
+  asistente, cómo te llama, trato (tú / usted / vos), humor (serio / sutil /
+  bromista), tu ciudad (clima y noticias por defecto) y estilos predefinidos
+  en el escritorio (Mayordomo, Amigo, Ejecutivo, Profesor). El prompt incluye
+  la fecha y hora local para saludar según el momento del día. Las bases
+  existentes reciben las columnas nuevas solas al arrancar
+  (`app.core.database.add_missing_columns`).
+- **Widgets** (`/api/v1/widgets/weather`, `/api/v1/widgets/news`): datos
+  directos para el escritorio, sin pasar por la IA.
+- **Escritorio (Electron)**: los paneles que estaban vacíos ahora muestran
+  datos reales — *Hoy* (saludo, reloj, clima, próximo recordatorio,
+  titulares), *Acciones rápidas*, *Recordatorios*, *Memoria* (buscar, agregar,
+  olvidar), *Actividad* y la campana de *Notificaciones*. El chat mantiene la
+  conversación entre mensajes, muestra markdown (listas, código, enlaces que
+  se abren en el navegador), imágenes de las tools y botones para confirmar
+  acciones de riesgo. Configuración tiene la sección *Personalidad*.
+- Corregido: el historial de conversación podía desordenarse si dos mensajes
+  se guardaban en el mismo instante.
+- 252 tests backend, 151 del escritorio.
 
 ## Estructura
 

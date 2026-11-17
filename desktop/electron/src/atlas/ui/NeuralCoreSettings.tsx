@@ -2,6 +2,7 @@ import { Range, Select, Toggle } from "../../components/Controls";
 import { GESTURE_NAMES } from "../hand-tracking/types.ts";
 import { GESTURE_LABELS, type NeuralCoreSettings as Settings, type QualitySetting } from "../interaction/InteractionConfig.ts";
 import { CameraPermissionControl } from "./CameraPermissionControl.tsx";
+import { ListeningSettings } from "./ListeningSettings.tsx";
 import { useNeuralLive, type NeuralCore } from "./useNeuralCore.ts";
 
 const QUALITY_OPTIONS: readonly (readonly [QualitySetting, string])[] = [
@@ -49,6 +50,8 @@ export function NeuralCoreSettings({ neural }: { neural: NeuralCore }) {
     <CameraPermissionControl neural={neural} />
     <Toggle label="Reaccion a la voz" value={settings.voiceReaction} onChange={value => update({ voiceReaction: value })} />
     <Toggle label="Leer en voz alta las respuestas escritas" value={settings.speakReplies} onChange={value => update({ speakReplies: value })} />
+    <ListeningSettings neural={neural} />
+    <h3 className="neural-title">Neural Core · Apariencia</h3>
     <Range label="Intensidad de particulas" min={10} value={Math.round(settings.intensity * 100)} onChange={value => update({ intensity: value / 100 })} />
     <Toggle label="Efectos de energia" value={settings.energyEffects} onChange={value => update({ energyEffects: value })} />
     <Toggle label="Color del nucleo personalizado" value={settings.coreColor !== null} onChange={value => update({ coreColor: value ? DEFAULT_CUSTOM_COLOR : null })} />

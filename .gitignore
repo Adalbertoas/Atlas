@@ -44,3 +44,7 @@ certs/
 
 ## Herramientas locales (Blender, etc.)
 .tools/
+
+## Modelos descargados y huella de voz (dato biometrico: nunca al repo)
+.cache/
+backend/speaker_profile.json

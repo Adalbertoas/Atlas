@@ -3,12 +3,12 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from functools import lru_cache
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.ai.anthropic_provider import AnthropicProvider
 from app.ai.base import AIProvider
-from app.ai.mock_provider import MockProvider
+from app.ai.factory import build_ai_provider
 from app.config import get_settings
 from app.core.database import get_db
 from app.core.orchestrator import Orchestrator
@@ -17,6 +17,7 @@ from app.security.permissions import permission_manager
 from app.tools.registry import tool_registry
 from app.voice.base import SpeechToTextProvider, TextToSpeechProvider
 from app.voice.mock_provider import MockSTTProvider, MockTTSProvider
+from app.voice.speaker import SPEAKER_MODEL_FILE, SpeakerVerifier
 
 
 def get_db_session() -> Generator[Session, None, None]:
@@ -25,14 +26,7 @@ def get_db_session() -> Generator[Session, None, None]:
 
 @lru_cache
 def _build_ai_provider() -> AIProvider:
-    settings = get_settings()
-    if settings.ai_provider == "ollama":
-        from app.ai.ollama_provider import OllamaProvider
-
-        return OllamaProvider(model=settings.ollama_model, base_url=settings.ollama_base_url)
-    if settings.ai_provider == "anthropic":
-        return AnthropicProvider(api_key=settings.anthropic_api_key, model=settings.anthropic_model)
-    return MockProvider()
+    return build_ai_provider()
 
 
 @lru_cache
@@ -61,9 +55,22 @@ def get_tts_provider() -> TextToSpeechProvider:
     if settings.tts_provider == "kokoro":
         from app.voice.kokoro_provider import KokoroProvider  # import perezoso: el modelo se carga al hablar
 
-        return KokoroProvider(voice=settings.kokoro_voice, speed=settings.kokoro_speed)
+        return KokoroProvider(
+            voice=settings.kokoro_voice,
+            speed=settings.kokoro_speed,
+            cache_dir=settings.kokoro_cache_dir,
+        )
     if settings.tts_provider == "sapi":
         from app.voice.sapi_provider import WindowsSapiProvider  # import perezoso: pyttsx3 solo en Windows
 
         return WindowsSapiProvider()
     return MockTTSProvider()
+
+
+@lru_cache
+def get_speaker_verifier() -> SpeakerVerifier:
+    settings = get_settings()
+    backend_dir = Path(__file__).resolve().parents[2]
+    model = Path(settings.speaker_model_path) if settings.speaker_model_path else backend_dir.parent / ".cache" / "speaker" / SPEAKER_MODEL_FILE
+    profile = Path(settings.speaker_profile_path) if settings.speaker_profile_path else backend_dir / "speaker_profile.json"
+    return SpeakerVerifier(model_path=model, profile_path=profile)

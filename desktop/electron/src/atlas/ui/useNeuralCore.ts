@@ -25,6 +25,7 @@ export function getNeuralCore(): AtlasInteractionController {
       transport: (channel, input) => window.atlas.invoke(channel, input),
       storage: safeStorage(),
       mediapipeBase: new URL("mediapipe", document.baseURI).href,
+      vadBase: new URL("vad/", document.baseURI).href,
       handDelegates: delegate === "CPU" || delegate === "GPU" ? [delegate] : undefined,
     });
     window.addEventListener("beforeunload", () => instance?.dispose());

@@ -3,6 +3,8 @@
 //
 // El control por manos NO forma parte de estas preferencias a propósito: la
 // cámara nunca se enciende sola al abrir ATLAS, hay que activarla en cada sesión.
+// La escucha manos libres tampoco se guarda encendida: solo se recuerda si el
+// usuario pidió expresamente activarla al iniciar (`listenOnStartup`).
 
 import { GESTURE_NAMES, type GestureName } from "../hand-tracking/types.ts";
 import type { QualityLevel } from "../particle-core/ParticlePresets.ts";
@@ -14,6 +16,18 @@ export type NeuralCoreSettings = {
   voiceReaction: boolean;
   /** Leer en voz alta también las respuestas a mensajes escritos. */
   speakReplies: boolean;
+  /** Activar la escucha manos libres ("Atlas") al abrir ATLAS. */
+  listenOnStartup: boolean;
+  /** 0 estricta … 1 capta voz baja. */
+  micSensitivity: number;
+  /** Tras una respuesta hablada, escuchar unos segundos sin necesidad de "Atlas". */
+  followUp: boolean;
+  /** Pitido al oír "Atlas". */
+  wakeSound: boolean;
+  /** En manos libres, obedecer solo a la voz registrada (si hay una registrada). */
+  onlyMyVoice: boolean;
+  /** Parecido mínimo con la voz registrada, 0,3 (permisivo) … 0,8 (estricto). */
+  speakerThreshold: number;
   /** 0 estricto … 1 permisivo. */
   gestureSensitivity: number;
   /** 0..1 */
@@ -38,6 +52,12 @@ export const DEFAULT_SETTINGS: NeuralCoreSettings = {
   particles: true,
   voiceReaction: true,
   speakReplies: false,
+  listenOnStartup: false,
+  micSensitivity: 0.5,
+  followUp: true,
+  wakeSound: true,
+  onlyMyVoice: true,
+  speakerThreshold: 0.5,
   gestureSensitivity: 0.5,
   intensity: 0.75,
   quality: "auto",
@@ -76,6 +96,12 @@ export function sanitizeSettings(input: unknown): NeuralCoreSettings {
     particles: bool(raw.particles, d.particles),
     voiceReaction: bool(raw.voiceReaction, d.voiceReaction),
     speakReplies: bool(raw.speakReplies, d.speakReplies),
+    listenOnStartup: bool(raw.listenOnStartup, d.listenOnStartup),
+    micSensitivity: unit(raw.micSensitivity, d.micSensitivity),
+    followUp: bool(raw.followUp, d.followUp),
+    wakeSound: bool(raw.wakeSound, d.wakeSound),
+    onlyMyVoice: bool(raw.onlyMyVoice, d.onlyMyVoice),
+    speakerThreshold: typeof raw.speakerThreshold === "number" && Number.isFinite(raw.speakerThreshold) ? Math.max(0.3, Math.min(0.8, raw.speakerThreshold)) : d.speakerThreshold,
     gestureSensitivity: unit(raw.gestureSensitivity, d.gestureSensitivity),
     intensity: unit(raw.intensity, d.intensity),
     quality: QUALITY_VALUES.includes(raw.quality as QualitySetting) ? (raw.quality as QualitySetting) : d.quality,

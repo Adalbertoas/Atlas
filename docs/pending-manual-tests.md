@@ -49,6 +49,34 @@ python serve.py
 
 ## Pendiente
 
+- [ ] **Escritorio renovado con el backend real** (Electron): *Configuración →
+      Personalidad* — elegir un estilo, poner tu nombre y tu ciudad, Guardar, y
+      confirmar que el panel *Hoy* muestra el clima de tu ciudad y el saludo con
+      tu nombre. Probar en el chat: "¿qué clima hace?", "noticias de
+      tecnología", "¿cuánto son 100 dólares en pesos dominicanos?", "calcula
+      15% de 2500", "genérame una contraseña", "pon el volumen al 30 %",
+      "abre youtube.com". Pedir algo de riesgo (ej. "cierra el bloc de notas")
+      y usar los botones *Confirmar / Cancelar*. Comprobar que recuerda el
+      mensaje anterior ("¿y mañana?" después de preguntar el clima). En
+      *Memoria*: agregar y olvidar un recuerdo; en *Recordatorios*: crear uno
+      desde el chat y cancelarlo desde el panel; la campana debe avisar
+      cuando vence.
+- [ ] **"Bloquea la PC"** (`lock_computer`) y **volumen exacto**
+      (`set_volume`): solo se probaron con tests simulados; la API real de
+      Windows se prueba a mano.
+
+- [ ] **Escucha en vivo en Electron con tu micrófono real** (ver
+      `docs/ATLAS_NEURAL_CORE.md`, "Escucha en vivo"): pulsar **Escuchar
+      "Atlas"** y probar "Atlas, ¿qué hora es?" de un tirón y "Atlas" + pausa
+      + pedido. Confirmar: que no se active con la tele o una conversación de
+      fondo, que no se oiga a sí misma por los altavoces, y ajustar
+      *Sensibilidad del microfono* mirando el medidor si corta o no arranca.
+      Ya probado de punta a punta con voz sintética inyectada como micrófono.
+- [ ] **Solo mi voz con tu voz real**: *Configuracion → Neural Core · Solo mi
+      voz → Registrar mi voz* (3 frases). Luego mirar la "Ultima frase" al
+      decir "Atlas, ..." vos y otra persona (o un video), y ajustar la
+      *Exigencia* si hace falta (por defecto 0,50).
+
 - [ ] **Diálogo de confirmación en el escritorio**: pedir "abre la
       calculadora" y confirmar que aparece un diálogo de Sí/No antes de
       ejecutarse, y que Cancelar de verdad no la abre.

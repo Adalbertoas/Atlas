@@ -12,17 +12,29 @@ import type { GestureName, HandFrame, TrackedHand } from "../hand-tracking/types
 import type { CoreInputs } from "../particle-core/ParticleAnimator.ts";
 import { CORE_VIEW, ParticleCore, type CoreStats } from "../particle-core/ParticleCore.ts";
 import { hexToRgb, nextLowerQuality, pickInitialQuality, VISUAL_PRESETS, type PresetName, type QualityLevel } from "../particle-core/ParticlePresets.ts";
+import { encodeWav } from "../voice/pcm.ts";
 import { VoiceSession, type VoicePhase, type VoiceTransport } from "../voice/VoiceSession.ts";
 import { AtlasVisualStateMachine, type AtlasVisualState } from "./AtlasVisualStateMachine.ts";
 import { SettingsStore, type NeuralCoreSettings, type SettingsStorage } from "./InteractionConfig.ts";
 
 export type CoreStatus = "off" | "ok" | "unavailable" | "context-lost";
 
+/** Huella de voz registrada en el backend ("solo mi voz"). */
+export type VoiceprintStatus = { available: boolean; enrolled: boolean; samples: number; consistency: number | null };
+
 /** Estado de baja frecuencia: cambia con eventos, no con cada fotograma. */
 export type RuntimeSnapshot = {
   state: AtlasVisualState;
   camera: HandTrackingStatus;
   voice: VoicePhase;
+  /** Escucha manos libres activa (micrófono abierto esperando "Atlas"). */
+  handsFree: boolean;
+  /** Lo que el usuario está diciendo, en vivo ("" si no habla a ATLAS). */
+  transcript: string;
+  /** null: aún no se sabe (backend sin consultar o inaccesible). */
+  voiceprint: VoiceprintStatus | null;
+  /** Aviso breve, p. ej. "Voz no reconocida". */
+  voiceNote: string | null;
   core: CoreStatus;
   quality: QualityLevel;
   /** El rendimiento cayó de forma sostenida y hay una calidad inferior disponible. */
@@ -45,6 +57,8 @@ export type ControllerOptions = {
   mediapipeBase: string;
   /** Orden de delegados de inferencia; por defecto el del servicio. */
   handDelegates?: InferenceDelegate[];
+  /** Carpeta con el detector de voz neuronal (silero_vad_v6.onnx y ort/). */
+  vadBase?: string;
 };
 
 const SLEEP_AFTER_MS = 3 * 60 * 1000;
@@ -52,6 +66,7 @@ const SUCCESS_PULSE_MS = 1400;
 const ERROR_PULSE_MS = 2600;
 const INFERENCE_FPS = 20;
 const IDLE_TICK_MS = 200;
+const VOICE_NOTE_MS = 3500;
 
 class Store<T> {
   private readonly listeners = new Set<() => void>();
@@ -91,15 +106,18 @@ export class AtlasInteractionController {
   readonly assistant = {
     requestStarted: (): void => {
       this.noteActivity();
+      this.voice.setBusy(true);
       this.states.setSignal("THINKING", true);
       this.refresh();
     },
     requestSucceeded: (): void => {
+      this.voice.setBusy(false);
       this.states.setSignal("THINKING", false);
       this.states.pulse("SUCCESS", SUCCESS_PULSE_MS, performance.now());
       this.refresh();
     },
     requestFailed: (): void => {
+      this.voice.setBusy(false);
       this.states.setSignal("THINKING", false);
       this.states.pulse("ERROR", ERROR_PULSE_MS, performance.now());
       this.refresh();
@@ -127,12 +145,13 @@ export class AtlasInteractionController {
   private gestureKey = "";
   private lastInferenceReport = 0;
   private qualityProbed = false;
+  private voiceNoteTimer = 0;
 
   constructor(options: ControllerOptions) {
     this.options = options;
     this.settings = new SettingsStore(options.storage);
     const initial = this.settings.get();
-    this.snapshot = new Store<RuntimeSnapshot>({ state: "IDLE", camera: "off", voice: "idle", core: "off", quality: this.effectiveQuality(initial), performanceHint: false, notice: null });
+    this.snapshot = new Store<RuntimeSnapshot>({ state: "IDLE", camera: "off", voice: "idle", handsFree: false, transcript: "", voiceprint: null, voiceNote: null, core: "off", quality: this.effectiveQuality(initial), performanceHint: false, notice: null });
 
     this.recognizer = new GestureRecognizer(gestureConfigFor(initial.gestureSensitivity));
     this.gestures = new GestureController({
@@ -150,9 +169,20 @@ export class AtlasInteractionController {
     this.voice = new VoiceSession({
       analyzer: this.analyzer,
       transport: options.transport,
+      vad: options.vadBase ? { modelUrl: `${options.vadBase}silero_vad_v6.onnx`, wasmBase: `${options.vadBase}ort/` } : undefined,
       onPhase: (phase) => this.handleVoicePhase(phase),
-      onTranscript: (text) => this.onTranscript?.(text),
+      onPartial: (text) => this.snapshot.patch({ transcript: text }),
+      onTranscript: (text) => {
+        this.snapshot.patch({ transcript: "" });
+        this.onTranscript?.(text);
+      },
+      onWake: () => this.noteActivity(),
       onError: (message) => this.reportError(message),
+      onSpeakerRejected: (score) => this.showVoiceNote(score === null ? "No se pudo verificar la voz" : `Voz no reconocida (${score.toFixed(2)})`),
+    });
+    this.voice.setPreferences(this.listeningPreferences(initial));
+    void this.refreshVoiceprint().finally(() => {
+      if (initial.listenOnStartup) void this.enableHandsFree();
     });
 
     this.unsubscribe.push(
@@ -240,6 +270,8 @@ export class AtlasInteractionController {
 
   // ---------- Voz ----------
 
+  /** Botón del micrófono: escuchar un comando (corta solo al callarse) o, si
+      ya está escuchando, terminar y enviar. */
   async toggleMicrophone(): Promise<void> {
     this.noteActivity();
     if (this.voice.recording) this.voice.stopRecording();
@@ -248,6 +280,61 @@ export class AtlasInteractionController {
 
   cancelMicrophone(): void {
     this.voice.cancelRecording();
+    this.snapshot.patch({ transcript: "" });
+  }
+
+  /** Escucha continua de "Atlas". Solo tras una acción explícita del usuario
+      (o su preferencia expresa de activarla al iniciar). */
+  async enableHandsFree(): Promise<void> {
+    this.noteActivity();
+    const ok = await this.voice.enableHandsFree();
+    this.snapshot.patch({ handsFree: ok && this.voice.handsFree });
+  }
+
+  disableHandsFree(): void {
+    this.voice.disableHandsFree();
+    this.snapshot.patch({ handsFree: false, transcript: "" });
+  }
+
+  // ---------- Solo mi voz ----------
+
+  async refreshVoiceprint(): Promise<void> {
+    try {
+      this.applyVoiceprint((await this.options.transport("atlas:speaker-status")) as VoiceprintStatus);
+    } catch {
+      this.snapshot.patch({ voiceprint: null });
+    }
+  }
+
+  /** Graba una frase para el registro de voz (corta sola al callarse). */
+  recordVoiceSample(): Promise<Float32Array> {
+    this.noteActivity();
+    return this.voice.recordSample();
+  }
+
+  cancelVoiceSample(): void {
+    this.voice.cancelSample();
+  }
+
+  /** Registra la voz con las frases grabadas. Lanza con el motivo si falla. */
+  async enrollVoice(samples: Float32Array[]): Promise<VoiceprintStatus> {
+    const status = (await this.options.transport("atlas:speaker-enroll", { samples: samples.map((sample) => encodeWav(sample)) })) as VoiceprintStatus;
+    this.applyVoiceprint(status);
+    return status;
+  }
+
+  async deleteVoice(): Promise<void> {
+    this.applyVoiceprint((await this.options.transport("atlas:speaker-delete")) as VoiceprintStatus);
+  }
+
+  /** Parecido de la última frase con la voz registrada (diagnóstico). */
+  get lastSpeakerScore(): number | null {
+    return this.voice.lastSpeakerScore;
+  }
+
+  /** Nivel del micrófono, ruido de fondo (dBFS) y probabilidad de voz, o null si está cerrado. */
+  get microphoneLevels(): { level: number; noiseFloor: number; speechProbability: number | null } | null {
+    return this.voice.levels;
   }
 
   speak(text: string): Promise<void> {
@@ -292,6 +379,7 @@ export class AtlasInteractionController {
 
   dispose(): void {
     window.clearInterval(this.idleTimer);
+    window.clearTimeout(this.voiceNoteTimer);
     for (const unsubscribe of this.unsubscribe) unsubscribe();
     this.detachCore();
     this.hands?.dispose();
@@ -324,6 +412,23 @@ export class AtlasInteractionController {
     this.snapshot.patch({ core: "off", performanceHint: false });
   }
 
+  private listeningPreferences(settings: NeuralCoreSettings) {
+    // El filtro solo se activa si hay una voz registrada: sin ella no hay con qué comparar.
+    const gate = settings.onlyMyVoice && this.snapshot?.get().voiceprint?.enrolled === true;
+    return { sensitivity: settings.micSensitivity, followUp: settings.followUp, wakeSound: settings.wakeSound, speakerThreshold: gate ? settings.speakerThreshold : null };
+  }
+
+  private applyVoiceprint(status: VoiceprintStatus): void {
+    this.snapshot.patch({ voiceprint: status });
+    this.voice.setPreferences(this.listeningPreferences(this.settings.get()));
+  }
+
+  private showVoiceNote(note: string): void {
+    window.clearTimeout(this.voiceNoteTimer);
+    this.snapshot.patch({ voiceNote: note });
+    this.voiceNoteTimer = window.setTimeout(() => this.snapshot.patch({ voiceNote: null }), VOICE_NOTE_MS);
+  }
+
   private effectiveQuality(settings: NeuralCoreSettings): QualityLevel {
     return settings.quality === "auto" ? this.autoQuality : settings.quality;
   }
@@ -333,6 +438,7 @@ export class AtlasInteractionController {
     this.recognizer.setConfig(gestureConfigFor(settings.gestureSensitivity));
     this.gestures.setEnabled(settings.gestures, settings.rotateWithHand);
     if (!settings.voiceReaction) this.visualizer.reset();
+    this.voice.setPreferences(this.listeningPreferences(settings));
     const quality = this.effectiveQuality(settings);
     this.core?.setQuality(quality);
     this.core?.setBloom(settings.bloom);
@@ -380,7 +486,8 @@ export class AtlasInteractionController {
     this.states.setSignal("LISTENING", phase === "recording");
     this.states.setSignal("PROCESSING", phase === "transcribing" || phase === "synthesizing");
     this.states.setSignal("SPEAKING", phase === "speaking");
-    this.snapshot.patch({ voice: phase });
+    // El micrófono puede cerrarse solo (desconectado): reflejarlo.
+    this.snapshot.patch({ voice: phase, handsFree: this.voice.handsFree });
     this.refresh();
   }
 

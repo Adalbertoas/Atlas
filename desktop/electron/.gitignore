@@ -4,3 +4,12 @@ public/mediapipe/wasm/
 
 # Salida de compilacion del proceso principal (`npm run build:electron`).
 dist-electron/
+
+# Runtime WASM de ONNX para el detector de voz: `npm run setup:vad`.
+public/vad/ort/
+
+bundle/
+release/
+
+# Perfil local del navegador de Electron (almacenamiento, cache): datos del equipo, no del proyecto.
+.electron-profile/

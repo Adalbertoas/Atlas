@@ -11,7 +11,14 @@ from app.voice.base import SpeechToTextProvider, TextToSpeechProvider
 
 
 class MockSTTProvider(SpeechToTextProvider):
-    def transcribe(self, audio_bytes: bytes, language: str | None = None) -> str:
+    def transcribe(
+        self,
+        audio_bytes: bytes,
+        language: str | None = None,
+        *,
+        fast: bool = False,
+        prompt: str | None = None,
+    ) -> str:
         return "texto simulado (configura STT_PROVIDER=whisper para transcripción real)"
 
 

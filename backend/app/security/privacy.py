@@ -119,6 +119,14 @@ def build_privacy_report(settings: Settings) -> list[dict]:
                 "Lo que ATLAS busca, al buscador; y tu dirección IP a cada página que lee.",
             )
         )
+        flows.append(
+            _flow(
+                "Clima, noticias y divisas",
+                "Open-Meteo, Google News y open.er-api.com",
+                "external",
+                "El nombre de la ciudad del clima, el tema de las noticias y las monedas que convertís.",
+            )
+        )
     else:
         flows.append(_flow("Internet", "Desactivado", "off", "ATLAS no busca ni lee páginas web."))
 

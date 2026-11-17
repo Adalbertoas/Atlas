@@ -44,3 +44,24 @@
 .neural-consent button.primary{border-color:#ff9a6b;background:#7a3415}
 .neural-actions{margin-top:14px}
 .composer button.recording{color:#fff;background:#b3261e;box-shadow:0 0 14px #ff5a4d}
+
+/* Escucha en vivo */
+.neural-listening{border-color:#2f8f6a;color:#c9f5df}
+.neural-listening .neural-live i{background:#3ee08f;box-shadow:0 0 8px #3ee08f;animation-duration:2.4s}
+.neural-heard{max-width:min(520px,calc(100vw - 32px))}
+.neural-heard q{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic;color:#fff}
+.neural-heard q.is-empty,.live-transcript .is-empty{opacity:.6}
+.live-transcript{display:flex;align-items:center;gap:8px;margin:0 17px;padding:7px 11px;border:1px solid rgba(255,90,77,.45);border-radius:9px;background:rgba(40,12,14,.55);font-size:12px;color:#ffe3dc}
+.live-transcript i{flex:none;width:8px;height:8px;border-radius:50%;background:#ff5a4d;box-shadow:0 0 8px #ff5a4d;animation:blink 1.4s ease-in-out infinite}
+.live-transcript span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mic-meter{display:grid;gap:5px;margin:4px 0 10px}
+.mic-meter-bar{position:relative;height:8px;border-radius:4px;background:rgba(9,35,56,.9);border:1px solid #1f526f;overflow:hidden}
+.mic-meter-bar i{position:absolute;inset:0 auto 0 0;background:#2a6f99;transition:width .15s linear}
+.mic-meter-bar i.is-voice{background:#3ee08f}
+.mic-meter-bar b{position:absolute;top:-1px;bottom:-1px;width:2px;background:#ffcc80}
+.mic-meter small{font-size:10px;color:#82a0b7}
+
+/* Solo mi voz */
+.voice-enroll blockquote{margin:8px 0;padding:9px 12px;border-left:3px solid #3ee08f;border-radius:6px;background:rgba(10,45,40,.55);font-size:14px;color:#fff;line-height:1.45}
+.voice-enroll-live{color:#c9f5df}
+.voice-note{border-color:#b5862f;color:#ffe2b0}

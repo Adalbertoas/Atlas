@@ -14,8 +14,20 @@ from enum import Enum
 
 class SpeechToTextProvider(ABC):
     @abstractmethod
-    def transcribe(self, audio_bytes: bytes, language: str | None = None) -> str:
-        """Convierte audio (WAV) a texto."""
+    def transcribe(
+        self,
+        audio_bytes: bytes,
+        language: str | None = None,
+        *,
+        fast: bool = False,
+        prompt: str | None = None,
+    ) -> str:
+        """Convierte audio (WAV) a texto.
+
+        fast: prioriza la latencia sobre la precisión (transcripciones
+        parciales mientras el usuario todavía habla).
+        prompt: texto de contexto que sesga el vocabulario (p. ej. "Atlas").
+        """
         raise NotImplementedError
 
 

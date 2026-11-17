@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     whisper_model_size: str = "base"
     kokoro_voice: str = "ef_dora"  # voz española local de Kokoro
     kokoro_speed: float = 1.0
+    kokoro_cache_dir: str = ""
+    # Verificación de hablante ("solo responder a mi voz"). Vacío = rutas por
+    # defecto: el modelo en .cache/speaker/ y la huella en backend/speaker_profile.json.
+    speaker_model_path: str = ""
+    speaker_profile_path: str = ""
 
     smart_home_provider: str = "mock"  # "home_assistant" | "mock"
     smart_home_url: str = ""
@@ -60,6 +65,19 @@ class Settings(BaseSettings):
     # la API de Brave Search; sin ella, DuckDuckGo y Wikipedia.
     web_enabled: bool = True
     brave_api_key: str = ""
+
+    # Creatividad: imágenes y dibujos vectoriales.
+    # Motores de imagen: "openai" (gpt-image, de pago, necesita OPENAI_API_KEY),
+    # "pollinations" (gratis, sin clave; el prompt se envía a pollinations.ai).
+    # "auto" usa OpenAI si hay clave y si no Pollinations.
+    image_default_engine: str = "auto"
+    openai_api_key: str = ""
+    openai_image_model: str = "gpt-image-1"
+    openai_image_quality: str = "medium"  # "low" | "medium" | "high"
+    # Modelo de Claude que dibuja los SVG (necesita AI_PROVIDER=anthropic).
+    creative_model: str = "claude-opus-5-5"
+    # Carpeta donde se guardan las creaciones. Vacío = Imágenes\ATLAS del usuario.
+    creative_dir: str = ""
 
     @property
     def is_production(self) -> bool:

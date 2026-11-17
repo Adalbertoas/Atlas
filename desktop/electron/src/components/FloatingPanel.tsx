@@ -8,12 +8,15 @@ export type FloatingPanelProps = {
   children: ReactNode;
   initial: WindowBox;
   zIndex: number;
+  active?: boolean;
   onFocus: () => void;
   onClose: () => void;
   onMinimize?: (value: boolean) => void;
 };
 
-const storageKey = "atlas.window-layout.v1";
+// v2: distribución nueva sin ventanas superpuestas (la v1 quedaba encimada con la barra lateral).
+export const LAYOUT_STORAGE_KEY = "atlas.window-layout.v2";
+const storageKey = LAYOUT_STORAGE_KEY;
 const minSize = { w: 260, h: 150 };
 
 function clampToViewport(box: WindowBox): WindowBox {
@@ -36,7 +39,7 @@ function persist(id: string, box: WindowBox) {
   try { const all = JSON.parse(localStorage.getItem(storageKey) || "{}"); localStorage.setItem(storageKey, JSON.stringify({ ...all, [id]: box })); } catch { /* persistence is optional */ }
 }
 
-export function FloatingPanel({ id, title, icon, children, initial, zIndex, onFocus, onClose, onMinimize }: FloatingPanelProps) {
+export function FloatingPanel({ id, title, icon, children, initial, zIndex, active = false, onFocus, onClose, onMinimize }: FloatingPanelProps) {
   const [box, setBox] = useState(() => clampToViewport(readBox(id, initial)));
   const [minimized, setMinimized] = useState(false);
   const [maximized, setMaximized] = useState(false);
@@ -60,9 +63,9 @@ export function FloatingPanel({ id, title, icon, children, initial, zIndex, onFo
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", end);
   };
   const toggleMinimize = () => { setMinimized(value => { onMinimize?.(!value); return !value; }); };
-  const toggleMaximize = () => { onFocus(); if (maximized && restore.current) { setBox(restore.current); setMaximized(false); } else { restore.current = box; setBox({ x: 178, y: 92, w: window.innerWidth - 570, h: window.innerHeight - 174 }); setMaximized(true); } };
-  return <section data-panel={id} className={`float ${minimized ? "is-minimized" : ""} ${maximized ? "is-maximized" : ""}`} style={{ left: box.x, top: box.y, width: box.w, height: minimized ? 44 : box.h, zIndex }} onPointerDown={onFocus}>
-    <header className="float-titlebar" onPointerDown={beginDrag}><span>{icon}<b>{title}</b></span><div><button aria-label={`Minimizar ${title}`} onClick={toggleMinimize}>-</button><button aria-label={`Maximizar ${title}`} onClick={toggleMaximize}>□</button><button aria-label={`Cerrar ${title}`} onClick={onClose}>×</button></div></header>
+  const toggleMaximize = () => { onFocus(); if (maximized && restore.current) { setBox(restore.current); setMaximized(false); } else { restore.current = box; setBox({ x: initial.x < 260 ? initial.x : 182, y: 88, w: window.innerWidth - 198, h: window.innerHeight - 180 }); setMaximized(true); } };
+  return <section data-panel={id} className={`float ${active ? "is-active" : ""} ${minimized ? "is-minimized" : ""} ${maximized ? "is-maximized" : ""}`} style={{ left: box.x, top: box.y, width: box.w, height: minimized ? 44 : box.h, zIndex }} onPointerDown={onFocus}>
+    <header className="float-titlebar" onPointerDown={beginDrag}><span>{icon}<b>{title}</b></span><div><button aria-label={`Minimizar ${title}`} title="Minimizar" onClick={toggleMinimize}><svg viewBox="0 0 12 12"><path d="M2 6h8" /></svg></button><button aria-label={`Maximizar ${title}`} title={maximized ? "Restaurar" : "Maximizar"} onClick={toggleMaximize}><svg viewBox="0 0 12 12">{maximized ? <path d="M4 2h6v6M2 4h6v6H2Z" /> : <path d="M2 2h8v8H2Z" />}</svg></button><button className="close" aria-label={`Cerrar ${title}`} title="Cerrar" onClick={onClose}><svg viewBox="0 0 12 12"><path d="m2.5 2.5 7 7m0-7-7 7" /></svg></button></div></header>
     {!minimized && <div className="float-content">{children}</div>}
     {!minimized && <button className="resize-handle" aria-label={`Redimensionar ${title}`} onPointerDown={beginResize} />}
   </section>;

@@ -96,6 +96,8 @@ describe("preferencias de Neural Core", () => {
     assert.equal(DEFAULT_SETTINGS.debugCamera, false);
     assert.equal(DEFAULT_SETTINGS.debugLandmarks, false);
     assert.equal(DEFAULT_SETTINGS.speakReplies, false);
+    assert.equal(DEFAULT_SETTINGS.listenOnStartup, false, "el micrófono no queda escuchando sin que se pida");
+    assert.ok(!("handsFree" in DEFAULT_SETTINGS), "la escucha manos libres no se persiste encendida");
     assert.ok(!("handControl" in DEFAULT_SETTINGS), "el control por manos no se persiste");
   });
 

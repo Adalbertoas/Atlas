@@ -80,3 +80,85 @@ def test_pick_voice_id_returns_none_when_no_spanish_voice_installed():
         ]
     )
     assert _pick_voice_id(engine) is None
+
+
+class _RecordingSTT(MockSTTProvider):
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def transcribe(self, audio_bytes, language=None, *, fast=False, prompt=None):
+        self.calls.append({"language": language, "fast": fast, "prompt": prompt})
+        return "hola"
+
+
+def test_transcribe_endpoint_forwards_fast_and_prompt(client, auth_headers):
+    from app.api.deps import get_stt_provider
+    from app.main import app
+
+    stt = _RecordingSTT()
+    app.dependency_overrides[get_stt_provider] = lambda: stt
+    response = client.post(
+        "/api/v1/voice/transcribe",
+        params={"fast": "true", "prompt": "Atlas."},
+        files={"audio": ("audio.wav", b"fake-audio-bytes", "audio/wav")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["text"] == "hola"
+    assert stt.calls == [{"language": "es", "fast": True, "prompt": "Atlas."}]
+
+
+def test_transcribe_endpoint_defaults_to_accurate_mode(client, auth_headers):
+    from app.api.deps import get_stt_provider
+    from app.main import app
+
+    stt = _RecordingSTT()
+    app.dependency_overrides[get_stt_provider] = lambda: stt
+    client.post(
+        "/api/v1/voice/transcribe",
+        files={"audio": ("audio.wav", b"fake-audio-bytes", "audio/wav")},
+        headers=auth_headers,
+    )
+    assert stt.calls == [{"language": "es", "fast": False, "prompt": None}]
+
+
+def test_pcm16_wav_is_decoded_without_ffmpeg():
+    import io
+    import wave
+
+    import numpy as np
+    import pytest
+
+    pytest.importorskip("faster_whisper")
+    from app.voice.audio import pcm16_wav_to_float
+
+    samples = np.array([0, 16384, -32768, 32767], dtype="<i2")
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16000)
+        wav.writeframes(samples.tobytes())
+    decoded = pcm16_wav_to_float(buffer.getvalue())
+    assert decoded is not None
+    assert decoded.dtype == np.float32
+    assert np.allclose(decoded, [0.0, 0.5, -1.0, 32767 / 32768])
+
+
+def test_non_16k_or_non_wav_audio_falls_back_to_generic_decoder():
+    import io
+    import wave
+
+    import pytest
+
+    pytest.importorskip("faster_whisper")
+    from app.voice.audio import pcm16_wav_to_float
+
+    assert pcm16_wav_to_float(b"\x1aE\xdf\xa3webm-bytes") is None
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(48000)
+        wav.writeframes(b"\x00\x00" * 10)
+    assert pcm16_wav_to_float(buffer.getvalue()) is None

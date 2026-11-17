@@ -52,6 +52,16 @@ def build_default_registry() -> ToolRegistry:
     from app.tools.computer.clipboard import ReadClipboardTool, WriteClipboardTool
     from app.tools.computer.manage_window import ManageWindowTool
     from app.tools.computer.save_screenshot import SaveScreenshotTool
+    from app.tools.everyday.everyday_tools import (
+        CalculateTool,
+        ConvertCurrencyTool,
+        GeneratePasswordTool,
+        GetNewsTool,
+        GetWeatherTool,
+        LockComputerTool,
+        OpenWebsiteTool,
+        SetVolumeTool,
+    )
     from app.tools.filesystem.search_documents import SearchDocumentsTool
     from app.tools.reminders.reminder_tools import CancelReminderTool, CreateReminderTool, ListRemindersTool
     from app.tools.web.web_tools import ReadWebPageTool, WebSearchTool
@@ -92,6 +102,11 @@ def build_default_registry() -> ToolRegistry:
         CreateReminderTool(),
         ListRemindersTool(),
         CancelReminderTool(),
+        CalculateTool(),
+        GeneratePasswordTool(),
+        OpenWebsiteTool(),
+        SetVolumeTool(),
+        LockComputerTool(),
     ):
         registry.register(tool)
 
@@ -99,6 +114,10 @@ def build_default_registry() -> ToolRegistry:
     if settings.web_enabled:
         registry.register(WebSearchTool(settings.brave_api_key))
         registry.register(ReadWebPageTool())
+        # Servicios públicos sin clave (Open-Meteo, Google News, open.er-api.com).
+        registry.register(GetWeatherTool())
+        registry.register(GetNewsTool())
+        registry.register(ConvertCurrencyTool())
 
     gods_eye_client = get_gods_eye_client()
     if gods_eye_client is not None:
@@ -107,6 +126,14 @@ def build_default_registry() -> ToolRegistry:
         registry.register(CreateWorldAlertTool())
         registry.register(ListWorldAlertsTool())
         registry.register(DeleteWorldAlertTool())
+
+    # Creatividad: imágenes por internet y dibujos vectoriales con la IA configurada.
+    from app.tools.creative.creative_tools import DrawVectorTool, GenerateImageTool
+
+    if settings.web_enabled:
+        registry.register(GenerateImageTool())
+    if settings.ai_provider != "mock":
+        registry.register(DrawVectorTool())
 
     # Sin Gods Eye View el briefing sale igual, solo que sin el clima.
     registry.register(DailyBriefingTool(gods_eye_client, settings.home_place, event_bus))

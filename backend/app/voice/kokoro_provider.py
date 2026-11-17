@@ -6,6 +6,7 @@ proveedor externo. La primera síntesis descarga/cachea los pesos del modelo.
 from __future__ import annotations
 
 import io
+import os
 import threading
 from typing import Any
 
@@ -15,17 +16,20 @@ from app.voice.base import TextToSpeechProvider
 class KokoroProvider(TextToSpeechProvider):
     """Text-to-speech local con una voz Kokoro configurable."""
 
-    def __init__(self, voice: str = "ef_dora", speed: float = 1.0) -> None:
+    def __init__(self, voice: str = "ef_dora", speed: float = 1.0, cache_dir: str = "") -> None:
         if not 0.5 <= speed <= 2.0:
             raise ValueError("KOKORO_SPEED debe estar entre 0.5 y 2.0.")
         self._voice = voice or "ef_dora"
         self._speed = speed
+        self._cache_dir = cache_dir.strip()
         self._pipeline: Any | None = None
         self._lock = threading.RLock()
 
     def _get_pipeline(self) -> Any:
         if self._pipeline is not None:
             return self._pipeline
+        if self._cache_dir:
+            os.environ.setdefault("HF_HOME", self._cache_dir)
         try:
             from kokoro import KPipeline
         except ImportError as exc:
