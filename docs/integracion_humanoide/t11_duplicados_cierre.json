@@ -1,0 +1,52 @@
+{
+ "humanoid": {
+  "counts": {
+   "gum": [
+    "audio",
+    "video"
+   ],
+   "audioContexts": 1,
+   "webgl": 1
+  },
+  "layers": 1,
+  "canvases": 2,
+  "humanoidLayer": true,
+  "camera": "active",
+  "handsFree": true,
+  "lab": {
+   "labVoiceSession": null,
+   "labHandProvider": "ATLAS"
+  },
+  "close": {
+   "code": 0,
+   "ms": 508,
+   "mainErrors": [
+    "Error occurred in handler for 'atlas:invoke': Error: El servicio respondió con un error (HTTP 429)."
+   ]
+  },
+  "pageErrors": []
+ },
+ "core": {
+  "counts": {
+   "gum": [
+    "audio",
+    "audio",
+    "video"
+   ],
+   "audioContexts": 2,
+   "webgl": 1
+  },
+  "layers": 1,
+  "canvases": 2,
+  "humanoidLayer": false,
+  "camera": "active",
+  "handsFree": true,
+  "lab": null,
+  "close": {
+   "code": 0,
+   "ms": 533,
+   "mainErrors": []
+  },
+  "pageErrors": []
+ }
+}

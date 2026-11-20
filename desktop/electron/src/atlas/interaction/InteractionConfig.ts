@@ -11,8 +11,14 @@ import type { QualityLevel } from "../particle-core/ParticlePresets.ts";
 
 export type QualitySetting = "auto" | QualityLevel;
 
+export type AvatarKind = "humanoid" | "core";
+
 export type NeuralCoreSettings = {
   particles: boolean;
+  /** Figura central: humanoide de partículas (ATLAS 3D) o el núcleo anterior. */
+  avatar: AvatarKind;
+  /** Bloom del humanoide (no en calidad baja). Apagarlo no quita el núcleo de energía del pecho. */
+  avatarBloom: boolean;
   voiceReaction: boolean;
   /** Leer en voz alta también las respuestas a mensajes escritos. */
   speakReplies: boolean;
@@ -50,6 +56,8 @@ export type NeuralCoreSettings = {
 
 export const DEFAULT_SETTINGS: NeuralCoreSettings = {
   particles: true,
+  avatar: "humanoid",
+  avatarBloom: true,
   voiceReaction: true,
   speakReplies: false,
   listenOnStartup: false,
@@ -94,6 +102,8 @@ export function sanitizeSettings(input: unknown): NeuralCoreSettings {
   const rawGestures = (typeof raw.gestures === "object" && raw.gestures !== null ? raw.gestures : {}) as Record<string, unknown>;
   return {
     particles: bool(raw.particles, d.particles),
+    avatar: raw.avatar === "core" || raw.avatar === "humanoid" ? raw.avatar : d.avatar,
+    avatarBloom: bool(raw.avatarBloom, d.avatarBloom),
     voiceReaction: bool(raw.voiceReaction, d.voiceReaction),
     speakReplies: bool(raw.speakReplies, d.speakReplies),
     listenOnStartup: bool(raw.listenOnStartup, d.listenOnStartup),

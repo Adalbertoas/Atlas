@@ -88,6 +88,15 @@ export class AudioAnalyzer {
     return { rms: rmsFromTimeDomain(tap.time), ...bandLevels(tap.frequency, this.context.sampleRate) };
   }
 
+  /** Muestras crudas (getByteTimeDomainData, centro 128) del audio activo, o
+      null. Es el formato de setAudioSamples del humanoide. Se reutiliza el búfer. */
+  timeDomain(): Uint8Array | null {
+    const tap = this.playbackTap ?? this.micTap;
+    if (!tap || !this.context) return null;
+    tap.analyser.getByteTimeDomainData(tap.time);
+    return tap.time;
+  }
+
   dispose(): void {
     this.stopPlayback();
     this.detachMicrophone();

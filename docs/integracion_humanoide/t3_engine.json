@@ -1,0 +1,165 @@
+{
+ "fps": {},
+ "resize": [
+  {
+   "window": [
+    1080,
+    700,
+    1
+   ],
+   "layer": [
+    2038,
+    926
+   ],
+   "canvas": [
+    2038,
+    926
+   ],
+   "dpr": 1,
+   "ok": true
+  },
+  {
+   "window": [
+    1280,
+    800,
+    1
+   ],
+   "layer": [
+    1738,
+    902
+   ],
+   "canvas": [
+    1738,
+    902
+   ],
+   "dpr": 1,
+   "ok": true
+  },
+  {
+   "window": [
+    1920,
+    1080,
+    1
+   ],
+   "layer": [
+    1754,
+    1006
+   ],
+   "canvas": [
+    1754,
+    1006
+   ],
+   "dpr": 1,
+   "ok": true
+  },
+  {
+   "window": [
+    1366,
+    768,
+    1.5
+   ],
+   "layer": [
+    1200,
+    694
+   ],
+   "canvas": [
+    1200,
+    694
+   ],
+   "dpr": 1.5,
+   "ok": false
+  },
+  {
+   "window": [
+    1520,
+    895,
+    1
+   ],
+   "layer": [
+    1354,
+    821
+   ],
+   "canvas": [
+    1354,
+    821
+   ],
+   "dpr": 1,
+   "ok": true
+  }
+ ],
+ "contextLoss": {
+  "duringLoss": "context-lost",
+  "afterRestore": "ok",
+  "losses": 1,
+  "restores": 1,
+  "fpsAfter": {
+   "fps": 53.7,
+   "p95Ms": 25,
+   "frameMs": 18.61,
+   "quality": "MEDIUM",
+   "count": 65536,
+   "bloom": true,
+   "draws": 25
+  }
+ },
+ "mount": [
+  {
+   "coreLayers": 1,
+   "coreCanvases": 1,
+   "coreHumanoid": false,
+   "humLayers": 1,
+   "humCanvases": 1,
+   "humanoid": true
+  },
+  {
+   "coreLayers": 1,
+   "coreCanvases": 1,
+   "coreHumanoid": false,
+   "humLayers": 1,
+   "humCanvases": 1,
+   "humanoid": true
+  },
+  {
+   "coreLayers": 1,
+   "coreCanvases": 1,
+   "coreHumanoid": false,
+   "humLayers": 1,
+   "humCanvases": 1,
+   "humanoid": true
+  },
+  {
+   "coreLayers": 1,
+   "coreCanvases": 1,
+   "coreHumanoid": false,
+   "humLayers": 1,
+   "humCanvases": 1,
+   "humanoid": true
+  },
+  {
+   "coreLayers": 1,
+   "coreCanvases": 1,
+   "coreHumanoid": false,
+   "humLayers": 1,
+   "humCanvases": 1,
+   "humanoid": true
+  },
+  {
+   "coreLayers": 1,
+   "coreCanvases": 1,
+   "coreHumanoid": false,
+   "humLayers": 1,
+   "humCanvases": 1,
+   "humanoid": true
+  }
+ ],
+ "heapMB": {
+  "before": 33.5,
+  "after": 33.5
+ },
+ "particlesOff": {
+  "layers": 0,
+  "canvases": 0,
+  "core": "off"
+ },
+ "errors": []
+}

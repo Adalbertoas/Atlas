@@ -1,0 +1,34 @@
+{
+ "auto": {
+  "inferenceMs": 307.6,
+  "fps": 49,
+  "qualities": [
+   "medium"
+  ],
+  "notice": null
+ },
+ "medium_sin_bloom": {
+  "inferenceMs": 228.1,
+  "fps": 55.5,
+  "qualities": [
+   "medium"
+  ],
+  "notice": null
+ },
+ "low": {
+  "inferenceMs": 209.9,
+  "fps": 57.4,
+  "qualities": [
+   "low"
+  ],
+  "notice": null
+ },
+ "high_sin_bloom": {
+  "inferenceMs": 272,
+  "fps": 51.3,
+  "qualities": [
+   "high"
+  ],
+  "notice": null
+ }
+}

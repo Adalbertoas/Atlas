@@ -37,7 +37,7 @@ export function pickInitialQuality(rendererName: string | null): QualityLevel {
   return "medium";
 }
 
-export type PresetName = "idle" | "listening" | "thinking" | "speaking" | "processing" | "success" | "error" | "sleeping";
+export type PresetName = "idle" | "listening" | "thinking" | "speaking" | "processing" | "executing" | "success" | "error" | "sleeping";
 
 export type CorePreset = {
   colorA: RGB;
@@ -80,6 +80,8 @@ export const VISUAL_PRESETS: Record<PresetName, CorePreset> = {
   thinking: { ...base, colorA: [0.66, 0.45, 1], colorB: [0.35, 0.3, 0.95], rotationSpeed: 0.32, timeScale: 1.3, turbulence: 0.85, cloud: 0.35, waveStrength: 0.1 },
   speaking: { ...base, colorA: [0.25, 0.55, 1], colorB: [0.45, 0.85, 1], waveDirection: 1, waveStrength: 0.8, brightness: 1.25, expansion: 1.03 },
   processing: { ...base, colorA: [0.82, 0.92, 1], colorB: [0.55, 0.78, 1], rotationSpeed: 0.85, timeScale: 2.4, turbulence: 0.45, ring: 0.25 },
+  // El núcleo anterior no distingue una herramienta en curso: la muestra como "procesando".
+  executing: { ...base, colorA: [0.82, 0.92, 1], colorB: [0.55, 0.78, 1], rotationSpeed: 0.85, timeScale: 2.4, turbulence: 0.45, ring: 0.25 },
   success: { ...base, colorA: [0.3, 1, 0.55], colorB: [0.1, 0.8, 0.6], brightness: 1.2, waveDirection: 1, waveStrength: 0.4 },
   error: { ...base, colorA: [1, 0.42, 0.42], colorB: [0.95, 0.25, 0.35], jitter: 0.8, rotationSpeed: 0.05, brightness: 1.05 },
   sleeping: { ...base, colorA: [0.16, 0.32, 0.62], colorB: [0.08, 0.18, 0.45], rotationSpeed: 0.03, timeScale: 0.25, expansion: 0.92, brightness: 0.45, waveStrength: 0.05, turbulence: 0.08 },

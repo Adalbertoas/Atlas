@@ -1,2 +1,2 @@
 export {};
-declare global { interface Window { atlas: { invoke(channel: string, input?: unknown): Promise<unknown> } } }
+declare global { interface Window { atlas: { invoke(channel: string, input?: unknown): Promise<unknown>; on?(channel: "atlas:chat-event", listener: (payload: unknown) => void): () => void } } }

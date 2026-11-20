@@ -28,7 +28,16 @@ export function getNeuralCore(): AtlasInteractionController {
       vadBase: new URL("vad/", document.baseURI).href,
       handDelegates: delegate === "CPU" || delegate === "GPU" ? [delegate] : undefined,
     });
-    window.addEventListener("beforeunload", () => instance?.dispose());
+    // Herramientas que ejecuta el backend durante el chat (streaming): estado EXECUTING.
+    const offChat = window.atlas.on?.("atlas:chat-event", (payload) => {
+      const event = payload as { type?: string };
+      if (event?.type === "tool") instance?.assistant.toolStarted();
+      else if (event?.type === "tool_done") instance?.assistant.toolFinished();
+    });
+    window.addEventListener("beforeunload", () => {
+      offChat?.();
+      instance?.dispose();
+    });
     // Acceso para diagnóstico manual y pruebas de humo: solo con ?neuralDebug.
     if (query.has("neuralDebug")) {
       (window as unknown as { __ATLAS_NEURAL_CORE__?: AtlasInteractionController }).__ATLAS_NEURAL_CORE__ = instance;

@@ -212,26 +212,63 @@ function chatAttachments(raw: unknown) {
     return { name: typeof name === "string" ? name.slice(0, 120) : "", mime_type: mimeType, data };
   });
 }
-async function atlasChat(input: unknown) {
+type ChatBody = { reply?: string; conversation_id?: string; requires_confirmation?: boolean; confirmation_id?: string; confirmation_description?: string; images?: ChatImage[]; files?: BackendFile[] };
+// Avisos del chat en streaming para la ventana: "tool" / "tool_done" mueven al
+// humanoide a "ejecutando" mientras el backend corre una herramienta.
+function notifyChat(sender: Electron.WebContents | undefined, event: { type: "tool" | "tool_done"; name: string; success?: boolean }) {
+  if (sender && !sender.isDestroyed()) sender.send("atlas:chat-event", event);
+}
+async function readChatStream(response: Response, sender?: Electron.WebContents): Promise<ChatBody> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("El backend no envio respuesta.");
+  const decoder = new TextDecoder();
+  const result: { done: ChatBody | null } = { done: null };
+  const handle = (chunk: string) => {
+    const data = chunk.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
+    if (!data) return;
+    let event: { type?: unknown; name?: unknown; success?: unknown };
+    try { event = JSON.parse(data); } catch { return; }
+    const name = typeof event.name === "string" ? event.name : "";
+    if (event.type === "tool") notifyChat(sender, { type: "tool", name });
+    else if (event.type === "tool_done") notifyChat(sender, { type: "tool_done", name, success: event.success !== false });
+    else if (event.type === "done") result.done = event as ChatBody;
+  };
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    let end: number;
+    while ((end = buffer.indexOf("\n\n")) >= 0) { handle(buffer.slice(0, end)); buffer = buffer.slice(end + 2); }
+    if (done) break;
+  }
+  handle(buffer);
+  if (!result.done) throw new Error("La respuesta de ATLAS se corto antes de terminar.");
+  return result.done;
+}
+async function atlasChat(input: unknown, sender?: Electron.WebContents) {
   const message = typeof (input as { message?: unknown })?.message === "string" ? (input as { message: string }).message.trim() : "";
   const attachments = chatAttachments((input as { attachments?: unknown })?.attachments);
   if (!message && !attachments.length) throw new Error("El mensaje no puede estar vacio.");
   // La misma conversación entre mensajes: sin esto ATLAS olvidaba lo dicho un mensaje antes.
   const conversationId = typeof (input as { conversationId?: unknown })?.conversationId === "string" ? (input as { conversationId: string }).conversationId : undefined;
   const token = await atlasLogin();
-  const response = await backendFetch(`${atlasApiUrl}/api/v1/chat`, {
+  const request = () => ({
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
     body: JSON.stringify({ message, conversation_id: conversationId, attachments }),
     signal: AbortSignal.timeout(180000), // con imágenes o dibujos la respuesta puede tardar
   });
+  // En streaming para saber cuándo se ejecuta una herramienta; un backend sin
+  // /chat/stream (versión anterior) sigue funcionando con la petición normal.
+  let response = await backendFetch(`${atlasApiUrl}/api/v1/chat/stream`, request());
+  if (response.status === 404 || response.status === 405) response = await backendFetch(`${atlasApiUrl}/api/v1/chat`, request());
   if (response.status === 401) { atlasToken = null; throw new Error("La sesion con ATLAS expiro. Intenta de nuevo."); }
   if (!response.ok) {
     // 400 = adjunto rechazado: el backend explica por qué (tipo, tamaño, archivo dañado).
     const detail = await response.json().then((b: { detail?: unknown }) => b?.detail, () => null);
     throw new Error(typeof detail === "string" ? detail : `El backend no pudo completar la consulta (HTTP ${response.status}).`);
   }
-  const body = await response.json() as { reply?: string; conversation_id?: string; requires_confirmation?: boolean; confirmation_id?: string; confirmation_description?: string; images?: ChatImage[]; files?: BackendFile[] };
+  const body = response.headers.get("content-type")?.startsWith("text/event-stream") ? await readChatStream(response, sender) : await response.json() as ChatBody;
   return {
     configured: true,
     text: body.reply ?? (body.requires_confirmation ? "" : "Sin respuesta."),
@@ -390,4 +427,4 @@ function guardNavigation(win: BrowserWindow) {
   win.webContents.setWindowOpenHandler(({ url: target }) => { external(target); return { action: "deny" }; });
   win.webContents.on("will-navigate", (event, target) => { if (target !== win.webContents.getURL()) { event.preventDefault(); external(target); } });
 }
-app.whenReady().then(() => { ipcMain.handle("atlas:invoke", async (_event, channel: string, input?: unknown) => { if (!allow.has(channel)) throw new Error("Operación no permitida."); if (channel === "system:status") return systemStatus(); if (channel === "system:processes") { try { return JSON.parse(await powershell("Get-Process | Sort-Object CPU -Descending | Select-Object -First 30 ProcessName,Id,CPU,WorkingSet64 | ConvertTo-Json -Compress")); } catch { return []; } } if (channel === "files:pick") { const picked = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] }); return picked.canceled ? [] : picked.filePaths.map((filePath) => path.basename(filePath)); } if (channel === "layout:load") { try { return JSON.parse(await (await import("node:fs/promises")).readFile(layoutPath(), "utf8")); } catch { return null; } } if (channel === "layout:save") { await (await import("node:fs/promises")).writeFile(layoutPath(), JSON.stringify(input)); return true; } if (channel === "atlas:service-status") return serviceStatus(); if (channel === "atlas:chat") return atlasChat(input); if (channel === "atlas:confirm") return atlasConfirm(input); if (channel === "atlas:api") return atlasApi(input); if (channel === "atlas:transcribe") return atlasTranscribe(input); if (channel === "atlas:speak") return atlasSpeak(input); if (channel === "atlas:speaker-status") return atlasSpeakerRequest("GET"); if (channel === "atlas:speaker-delete") return atlasSpeakerRequest("DELETE"); if (channel === "atlas:speaker-enroll") return atlasSpeakerEnroll(input); if (channel === "creative:open-folder") return openCreationsFolder(); if (channel === "files:save") return saveGeneratedFile(input); if (channel === "files:open") return openGeneratedFile(input); if (channel === "files:reveal") return revealGeneratedFile(input); return null; }); restrictPermissions(); trustDevCertificate(); if (bundled) backendReady = ensureBundledBackend(); createWindow(); app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); }); }); app.on("will-quit", stopBundledBackend); app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
+app.whenReady().then(() => { ipcMain.handle("atlas:invoke", async (_event, channel: string, input?: unknown) => { if (!allow.has(channel)) throw new Error("Operación no permitida."); if (channel === "system:status") return systemStatus(); if (channel === "system:processes") { try { return JSON.parse(await powershell("Get-Process | Sort-Object CPU -Descending | Select-Object -First 30 ProcessName,Id,CPU,WorkingSet64 | ConvertTo-Json -Compress")); } catch { return []; } } if (channel === "files:pick") { const picked = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] }); return picked.canceled ? [] : picked.filePaths.map((filePath) => path.basename(filePath)); } if (channel === "layout:load") { try { return JSON.parse(await (await import("node:fs/promises")).readFile(layoutPath(), "utf8")); } catch { return null; } } if (channel === "layout:save") { await (await import("node:fs/promises")).writeFile(layoutPath(), JSON.stringify(input)); return true; } if (channel === "atlas:service-status") return serviceStatus(); if (channel === "atlas:chat") return atlasChat(input, _event.sender); if (channel === "atlas:confirm") return atlasConfirm(input); if (channel === "atlas:api") return atlasApi(input); if (channel === "atlas:transcribe") return atlasTranscribe(input); if (channel === "atlas:speak") return atlasSpeak(input); if (channel === "atlas:speaker-status") return atlasSpeakerRequest("GET"); if (channel === "atlas:speaker-delete") return atlasSpeakerRequest("DELETE"); if (channel === "atlas:speaker-enroll") return atlasSpeakerEnroll(input); if (channel === "creative:open-folder") return openCreationsFolder(); if (channel === "files:save") return saveGeneratedFile(input); if (channel === "files:open") return openGeneratedFile(input); if (channel === "files:reveal") return revealGeneratedFile(input); return null; }); restrictPermissions(); trustDevCertificate(); if (bundled) backendReady = ensureBundledBackend(); createWindow(); app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); }); }); app.on("will-quit", stopBundledBackend); app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });

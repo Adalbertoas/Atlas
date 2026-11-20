@@ -29,11 +29,12 @@ def test_chat_stream_endpoint_emits_events_in_order(client, auth_headers):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     events = _events(response)
-    assert [e["type"] for e in events] == ["start", "tool", "delta", "done"]
+    assert [e["type"] for e in events] == ["start", "tool", "tool_done", "delta", "done"]
     assert events[1]["name"] == "get_current_time"
+    assert events[2] == {"type": "tool_done", "name": "get_current_time", "success": True}
     done = events[-1]
     assert done["reply"].startswith("Listo. Resultado de get_current_time")
-    assert done["reply"] == events[2]["text"]
+    assert done["reply"] == events[3]["text"]
     assert done["conversation_id"] == events[0]["conversation_id"]
     assert done["requires_confirmation"] is False
 

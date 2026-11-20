@@ -1,0 +1,20 @@
+{
+ "sin_figura": {
+  "delegate": null,
+  "inferenceMsMean": 331,
+  "inferenceMsMin": 195.7,
+  "fpsMean": null
+ },
+ "nucleo_anterior": {
+  "delegate": null,
+  "inferenceMsMean": 307,
+  "inferenceMsMin": 190.8,
+  "fpsMean": 57.7
+ },
+ "humanoide": {
+  "delegate": null,
+  "inferenceMsMean": 989,
+  "inferenceMsMin": 640.4,
+  "fpsMean": 37.2
+ }
+}

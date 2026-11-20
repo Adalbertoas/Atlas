@@ -1,0 +1,79 @@
+{
+ "changes": [
+  [
+   3715,
+   "LISTENING",
+   "recording",
+   "listening",
+   "Listening"
+  ],
+  [
+   5017,
+   "PROCESSING",
+   "transcribing",
+   "thinking",
+   "Thinking"
+  ],
+  [
+   9289,
+   "THINKING",
+   "standby",
+   "thinking",
+   "Thinking"
+  ],
+  [
+   9333,
+   "PROCESSING",
+   "synthesizing",
+   "thinking",
+   "Thinking"
+  ],
+  [
+   15429,
+   "SPEAKING",
+   "speaking",
+   "speaking",
+   "Talking"
+  ],
+  [
+   20793,
+   "LISTENING",
+   "recording",
+   "speaking",
+   "Talking"
+  ],
+  [
+   20822,
+   "LISTENING",
+   "recording",
+   "listening",
+   "Listening"
+  ],
+  [
+   26048,
+   "IDLE",
+   "standby",
+   "idle",
+   "Idle"
+  ]
+ ],
+ "listening": {
+  "samples": 216,
+  "max": 1,
+  "mean": 0.034
+ },
+ "speaking": {
+  "samples": 180,
+  "max": 0.43,
+  "mean": 0.112
+ },
+ "idle": {
+  "samples": 417,
+  "max": 0.008,
+  "mean": 0.008
+ },
+ "messages": [
+  "TuBuenas noches.",
+  "ATLASEntendido. (respuesta simulada — configura AI_PROVIDER=anthropic para IA real)Copiar"
+ ]
+}

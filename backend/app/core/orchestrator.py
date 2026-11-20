@@ -87,13 +87,15 @@ class ChatEvent:
     """Un paso del procesamiento de un mensaje, para el chat en streaming.
 
     type: "start" (trae conversation_id) | "delta" (texto parcial del modelo) |
-    "tool" (se está por ejecutar la tool `name`) | "done" (trae `result`).
+    "tool" (se está por ejecutar la tool `name`) | "tool_done" (la tool `name`
+    terminó; `success` dice si salió bien) | "done" (trae `result`).
     """
 
     type: str
     conversation_id: str | None = None
     text: str | None = None
     name: str | None = None
+    success: bool | None = None
     result: ChatResult | None = None
 
 
@@ -276,6 +278,7 @@ class Orchestrator:
 
                 yield ChatEvent(type="tool", name=tool.name)
                 result = tool.execute(call.arguments, ToolContext(db=db))
+                yield ChatEvent(type="tool_done", name=tool.name, success=result.success)
                 images.extend(result.images)
                 files.extend(result.files)
                 write_audit(

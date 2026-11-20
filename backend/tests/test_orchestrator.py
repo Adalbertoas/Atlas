@@ -113,8 +113,9 @@ def test_stream_message_emits_deltas_tools_and_done(db_session):
 
     events = list(_orchestrator(provider).stream_message(db_session, "hora"))
 
-    assert [e.type for e in events] == ["start", "tool", "delta", "done"]
+    assert [e.type for e in events] == ["start", "tool", "tool_done", "delta", "done"]
     assert events[1].name == "get_current_time"
-    assert events[2].text == "Son las 10."
-    assert events[3].result.reply == "Son las 10."
-    assert events[3].result.conversation_id == events[0].conversation_id
+    assert (events[2].name, events[2].success) == ("get_current_time", True)
+    assert events[3].text == "Son las 10."
+    assert events[4].result.reply == "Son las 10."
+    assert events[4].result.conversation_id == events[0].conversation_id

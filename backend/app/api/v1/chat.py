@@ -65,7 +65,7 @@ def stream_message(
 ) -> StreamingResponse:
     """Igual que POST /chat, pero como Server-Sent Events: el texto llega a
     medida que el modelo lo genera. Cada evento es un JSON con `type`:
-    start | delta | tool | done (este último trae lo mismo que ChatResponse)."""
+    start | delta | tool | tool_done | done (este último trae lo mismo que ChatResponse)."""
     attachments = _attachments(body)
 
     def events() -> Iterator[str]:
@@ -78,6 +78,9 @@ def stream_message(
                     payload["text"] = event.text
                 elif event.type == "tool":
                     payload["name"] = event.name
+                elif event.type == "tool_done":
+                    payload["name"] = event.name
+                    payload["success"] = event.success
                 elif event.type == "done":
                     payload.update(_to_response(event.result).model_dump())
                 yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"

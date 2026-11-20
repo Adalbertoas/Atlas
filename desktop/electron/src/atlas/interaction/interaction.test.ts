@@ -80,7 +80,7 @@ describe("AtlasVisualStateMachine", () => {
 
   it("todas las prioridades son distintas y cada estado tiene etiqueta", () => {
     const states = Object.keys(STATE_PRIORITY) as AtlasVisualState[];
-    assert.equal(states.length, 8);
+    assert.equal(states.length, 9); // con EXECUTING (herramienta en curso)
     assert.equal(new Set(Object.values(STATE_PRIORITY)).size, states.length);
     for (const state of states) assert.ok(STATE_LABELS[state]);
   });

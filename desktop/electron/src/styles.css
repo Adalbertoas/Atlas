@@ -10,13 +10,16 @@
 /* El escritorio es un lienzo de ventanas. En tamaños reducidos se escala el
    lienzo entero con `zoom`, en vez de transformar sólo cada panel: así se
    conservan sus coordenadas, no aparecen huecos y el contenido sigue dentro
-   del viewport. */
+   del viewport. Con el zoom estandarizado de Chromium (128+), el ancho en %
+   ya se resuelve sobre el viewport (compensarlo desbordaba la interfaz por la
+   derecha); vh, en cambio, sí se escala con el zoom y se sigue compensando. min-height = 635 px visibles, el alto
+   interior de la ventana mínima (1080×700). */
 @media (max-width: 1280px){
-  .workspace{zoom:.82;width:121.9513%;height:121.9513vh;min-height:854px}
+  .workspace{zoom:.82;width:100%;height:121.9513vh;min-height:775px}
   .top-actions{gap:11px}.tagline{margin-left:30px}.dock{min-width:500px}.quick-actions{gap:6px}.quick-actions button{padding:8px}
 }
 @media (max-width: 1120px){
-  .workspace{zoom:.70;width:142.8572%;height:142.8572vh;min-height:1000px}
+  .workspace{zoom:.70;width:100%;height:142.8572vh;min-height:908px}
 }
 
 /* Orbe de voz: representación abstracta, no humana. */

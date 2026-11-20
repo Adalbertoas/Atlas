@@ -6,13 +6,16 @@
 //  - pulsos temporales (pulse): SUCCESS y ERROR, que caducan solos.
 // El estado mostrado es siempre el de mayor prioridad entre los activos.
 
-export type AtlasVisualState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING" | "PROCESSING" | "SUCCESS" | "ERROR" | "SLEEPING";
+// EXECUTING: el backend está ejecutando una herramienta (evento "tool" del chat
+// en streaming, hasta su "tool_done").
+export type AtlasVisualState = "IDLE" | "LISTENING" | "THINKING" | "SPEAKING" | "PROCESSING" | "EXECUTING" | "SUCCESS" | "ERROR" | "SLEEPING";
 
 export const STATE_PRIORITY: Record<AtlasVisualState, number> = {
   ERROR: 80,
   SPEAKING: 70,
   LISTENING: 60,
   PROCESSING: 50,
+  EXECUTING: 45,
   THINKING: 40,
   SUCCESS: 30,
   SLEEPING: 10,
@@ -25,6 +28,7 @@ export const STATE_LABELS: Record<AtlasVisualState, string> = {
   THINKING: "Pensando",
   SPEAKING: "Hablando",
   PROCESSING: "Procesando",
+  EXECUTING: "Ejecutando",
   SUCCESS: "Completado",
   ERROR: "Error",
   SLEEPING: "En reposo",

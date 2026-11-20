@@ -1,0 +1,59 @@
+{
+ "fps": {
+  "low+bloom": {
+   "fps": 59.2,
+   "p95Ms": 18,
+   "frameMs": 16.88,
+   "quality": "LOW",
+   "count": 16384,
+   "bloom": false,
+   "draws": 10
+  },
+  "low": {
+   "fps": 59.9,
+   "p95Ms": 17.6,
+   "frameMs": 16.68,
+   "quality": "LOW",
+   "count": 16384,
+   "bloom": false,
+   "draws": 10
+  },
+  "medium+bloom": {
+   "fps": 57.3,
+   "p95Ms": 21.3,
+   "frameMs": 17.45,
+   "quality": "MEDIUM",
+   "count": 65536,
+   "bloom": true,
+   "draws": 25
+  },
+  "medium": {
+   "fps": 60,
+   "p95Ms": 19.2,
+   "frameMs": 16.66,
+   "quality": "MEDIUM",
+   "count": 65536,
+   "bloom": false,
+   "draws": 10
+  },
+  "high+bloom": {
+   "fps": 48.9,
+   "p95Ms": 25.9,
+   "frameMs": 20.47,
+   "quality": "HIGH",
+   "count": 131072,
+   "bloom": true,
+   "draws": 25
+  },
+  "high": {
+   "fps": 56,
+   "p95Ms": 22.4,
+   "frameMs": 17.86,
+   "quality": "HIGH",
+   "count": 131072,
+   "bloom": false,
+   "draws": 10
+  }
+ },
+ "errors": []
+}

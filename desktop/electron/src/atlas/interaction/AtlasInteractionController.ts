@@ -9,6 +9,7 @@ import { GestureRecognizer } from "../hand-tracking/GestureRecognizer.ts";
 import { HandTrackingService, type HandTrackingStatus, type InferenceDelegate } from "../hand-tracking/HandTrackingService.ts";
 import { LandmarkSmoother } from "../hand-tracking/LandmarkSmoother.ts";
 import type { GestureName, HandFrame, TrackedHand } from "../hand-tracking/types.ts";
+import { HumanoidCore, type HumanoidFrame } from "../humanoid/HumanoidCore.ts";
 import type { CoreInputs } from "../particle-core/ParticleAnimator.ts";
 import { CORE_VIEW, ParticleCore, type CoreStats } from "../particle-core/ParticleCore.ts";
 import { hexToRgb, nextLowerQuality, pickInitialQuality, VISUAL_PRESETS, type PresetName, type QualityLevel } from "../particle-core/ParticlePresets.ts";
@@ -18,6 +19,10 @@ import { AtlasVisualStateMachine, type AtlasVisualState } from "./AtlasVisualSta
 import { SettingsStore, type NeuralCoreSettings, type SettingsStorage } from "./InteractionConfig.ts";
 
 export type CoreStatus = "off" | "ok" | "unavailable" | "context-lost";
+
+/** Humanoide de partículas: "unavailable" (sin WebGL2 o sin recursos) hace que la
+    vista vuelva al núcleo anterior. */
+export type HumanoidStatus = "off" | "loading" | "ok" | "unavailable";
 
 /** Huella de voz registrada en el backend ("solo mi voz"). */
 export type VoiceprintStatus = { available: boolean; enrolled: boolean; samples: number; consistency: number | null };
@@ -36,6 +41,7 @@ export type RuntimeSnapshot = {
   /** Aviso breve, p. ej. "Voz no reconocida". */
   voiceNote: string | null;
   core: CoreStatus;
+  humanoid: HumanoidStatus;
   quality: QualityLevel;
   /** El rendimiento cayó de forma sostenida y hay una calidad inferior disponible. */
   performanceHint: boolean;
@@ -59,6 +65,8 @@ export type ControllerOptions = {
   handDelegates?: InferenceDelegate[];
   /** Carpeta con el detector de voz neuronal (silero_vad_v6.onnx y ort/). */
   vadBase?: string;
+  /** Carpeta con el GLB V004 y los datos de partículas del humanoide. */
+  humanoidBase?: string;
 };
 
 const SLEEP_AFTER_MS = 3 * 60 * 1000;
@@ -110,14 +118,27 @@ export class AtlasInteractionController {
       this.states.setSignal("THINKING", true);
       this.refresh();
     },
+    /** El backend empezó a ejecutar una herramienta (evento "tool" del streaming). */
+    toolStarted: (): void => {
+      this.noteActivity();
+      this.states.setSignal("EXECUTING", true);
+      this.refresh();
+    },
+    /** La herramienta terminó (evento "tool_done"): vuelve a "pensando". */
+    toolFinished: (): void => {
+      this.states.setSignal("EXECUTING", false);
+      this.refresh();
+    },
     requestSucceeded: (): void => {
       this.voice.setBusy(false);
+      this.states.setSignal("EXECUTING", false);
       this.states.setSignal("THINKING", false);
       this.states.pulse("SUCCESS", SUCCESS_PULSE_MS, performance.now());
       this.refresh();
     },
     requestFailed: (): void => {
       this.voice.setBusy(false);
+      this.states.setSignal("EXECUTING", false);
       this.states.setSignal("THINKING", false);
       this.states.pulse("ERROR", ERROR_PULSE_MS, performance.now());
       this.refresh();
@@ -136,6 +157,7 @@ export class AtlasInteractionController {
   private readonly idleTimer: number;
   private hands: HandTrackingService | null = null;
   private core: ParticleCore | null = null;
+  private humanoid: HumanoidCore | null = null;
   private autoQuality: QualityLevel = "medium";
   private lastActivity = performance.now();
   private motionScale = 1;
@@ -146,12 +168,14 @@ export class AtlasInteractionController {
   private lastInferenceReport = 0;
   private qualityProbed = false;
   private voiceNoteTimer = 0;
+  private lastAvatar: NeuralCoreSettings["avatar"] = "humanoid";
 
   constructor(options: ControllerOptions) {
     this.options = options;
     this.settings = new SettingsStore(options.storage);
     const initial = this.settings.get();
-    this.snapshot = new Store<RuntimeSnapshot>({ state: "IDLE", camera: "off", voice: "idle", handsFree: false, transcript: "", voiceprint: null, voiceNote: null, core: "off", quality: this.effectiveQuality(initial), performanceHint: false, notice: null });
+    this.lastAvatar = initial.avatar;
+    this.snapshot = new Store<RuntimeSnapshot>({ state: "IDLE", camera: "off", voice: "idle", handsFree: false, transcript: "", voiceprint: null, voiceNote: null, core: "off", humanoid: "off", quality: this.effectiveQuality(initial), performanceHint: false, notice: null });
 
     this.recognizer = new GestureRecognizer(gestureConfigFor(initial.gestureSensitivity));
     this.gestures = new GestureController({
@@ -236,6 +260,57 @@ export class AtlasInteractionController {
       this.snapshot.patch({ core: "unavailable" });
     }
     return () => this.detachCore();
+  }
+
+  /** Monta el humanoide de partículas dentro de `container` (crea su propio
+      lienzo). Desmonta antes cualquier otra figura: nunca hay dos a la vez. Si
+      no puede cargarse, `snapshot.humanoid` pasa a "unavailable" y la vista
+      vuelve al núcleo anterior. */
+  attachAvatar(container: HTMLElement): () => void {
+    this.detachCore();
+    const settings = this.settings.get();
+    const camera = this.snapshot.get().camera;
+    try {
+      const humanoid = new HumanoidCore({
+        container,
+        assetBase: this.options.humanoidBase ?? new URL("assets/atlas/", document.baseURI).href,
+        quality: this.effectiveQuality(settings),
+        bloom: settings.avatarBloom,
+        provideFrame: () => this.provideHumanoidFrame(),
+        onReady: (rendererName) => {
+          if (this.humanoid !== humanoid) return;
+          if (!this.qualityProbed) {
+            this.qualityProbed = true;
+            this.autoQuality = pickInitialQuality(rendererName);
+            humanoid.setQuality(this.effectiveQuality(this.settings.get()));
+          }
+          this.snapshot.patch({ core: "ok", humanoid: "ok", quality: this.effectiveQuality(this.settings.get()), performanceHint: false });
+        },
+        onUnavailable: (error) => {
+          if (this.humanoid !== humanoid) return;
+          console.warn("[neural-core] Humanoide no disponible, se usa el nucleo anterior:", error);
+          this.detachCore();
+          this.snapshot.patch({ humanoid: "unavailable" });
+        },
+        onStats: (stats) => this.live.patch({ stats }),
+        onPerformanceDegraded: (quality) => this.handleDegradation(quality),
+        onContextLost: () => this.snapshot.patch({ core: "context-lost" }),
+        onContextRestored: () => this.snapshot.patch({ core: "ok" }),
+      });
+      this.humanoid = humanoid;
+      humanoid.setHandsActive(camera === "active");
+      this.snapshot.patch({ humanoid: "loading" });
+    } catch (error) {
+      console.warn("[neural-core] Humanoide no disponible:", error);
+      this.humanoid = null;
+      this.snapshot.patch({ humanoid: "unavailable" });
+    }
+    return () => this.detachCore();
+  }
+
+  /** Lienzo del humanoide montado, o null (diagnóstico y pruebas). */
+  get humanoidCanvas(): HTMLCanvasElement | null {
+    return this.humanoid?.canvas ?? null;
   }
 
   setViewAspect(aspect: number): void {
@@ -402,8 +477,14 @@ export class AtlasInteractionController {
   }
 
   private detachCore(): void {
+    if (this.humanoid) {
+      this.humanoid.dispose();
+      this.humanoid = null;
+      if (this.snapshot.get().humanoid !== "unavailable") this.snapshot.patch({ humanoid: "off" });
+    }
     if (!this.core) {
       if (this.snapshot.get().core !== "off") this.snapshot.patch({ core: "off" });
+      this.live.patch({ stats: null });
       return;
     }
     this.core.dispose();
@@ -435,6 +516,11 @@ export class AtlasInteractionController {
 
   private applySettings(): void {
     const settings = this.settings.get();
+    // Elegir otra vez el humanoide permite reintentar si antes no pudo cargarse.
+    if (settings.avatar !== this.lastAvatar) {
+      this.lastAvatar = settings.avatar;
+      if (settings.avatar === "humanoid" && this.snapshot.get().humanoid === "unavailable") this.snapshot.patch({ humanoid: "off" });
+    }
     this.recognizer.setConfig(gestureConfigFor(settings.gestureSensitivity));
     this.gestures.setEnabled(settings.gestures, settings.rotateWithHand);
     if (!settings.voiceReaction) this.visualizer.reset();
@@ -442,6 +528,8 @@ export class AtlasInteractionController {
     const quality = this.effectiveQuality(settings);
     this.core?.setQuality(quality);
     this.core?.setBloom(settings.bloom);
+    this.humanoid?.setQuality(quality);
+    this.humanoid?.setBloom(settings.avatarBloom);
     this.snapshot.patch({ quality });
   }
 
@@ -476,6 +564,12 @@ export class AtlasInteractionController {
     };
   }
 
+  /** Estado y audio reales para el humanoide, una vez por fotograma. */
+  private provideHumanoidFrame(): HumanoidFrame {
+    const state = this.refresh();
+    return { state, audio: this.settings.get().voiceReaction ? this.analyzer.timeDomain() : null };
+  }
+
   private refresh(now = performance.now()): AtlasVisualState {
     this.states.setSignal("SLEEPING", now - this.lastActivity > SLEEP_AFTER_MS);
     return this.states.update(now);
@@ -500,11 +594,14 @@ export class AtlasInteractionController {
       this.gestureKey = "";
       this.live.patch({ inferenceMs: null, handCount: 0, activeGestures: [] });
     }
+    this.humanoid?.setHandsActive(status === "active");
     this.snapshot.patch({ camera: status });
     if (status === "error") this.reportError(error ?? "Error de camara.");
   }
 
   private handleHandFrame(frame: HandFrame, inferenceMs: number): void {
+    // Mismos fotogramas de la única cámara de ATLAS: el humanoide imita las manos.
+    this.humanoid?.pushHands(frame);
     const keys: string[] = [];
     const hands = frame.hands.map((hand, index) => {
       // MediaPipe puede etiquetar dos manos con la misma lateralidad.

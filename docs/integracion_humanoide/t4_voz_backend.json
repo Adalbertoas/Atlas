@@ -1,0 +1,151 @@
+{
+ "phases": {
+  "voz": {
+   "timeline": [
+    [
+     4881,
+     "IDLE",
+     "standby",
+     "idle",
+     "idle",
+     "idle",
+     "Idle",
+     0
+    ],
+    [
+     10906,
+     "PROCESSING",
+     "transcribing",
+     "thinking",
+     "thinking",
+     "thinking",
+     "Thinking",
+     0
+    ],
+    [
+     16278,
+     "LISTENING",
+     "recording",
+     "thinking",
+     "thinking",
+     "thinking",
+     "Thinking",
+     0
+    ],
+    [
+     16375,
+     "LISTENING",
+     "recording",
+     "listening",
+     "listening",
+     "listening",
+     "Listening",
+     0
+    ],
+    [
+     22275,
+     "IDLE",
+     "standby",
+     "idle",
+     "idle",
+     "idle",
+     "Idle",
+     0.01
+    ],
+    [
+     34227,
+     "PROCESSING",
+     "transcribing",
+     "thinking",
+     "thinking",
+     "thinking",
+     "Thinking",
+     0.01
+    ],
+    [
+     58109,
+     "IDLE",
+     "standby",
+     "idle",
+     "idle",
+     "idle",
+     "Idle",
+     0.01
+    ]
+   ],
+   "chatEvents": [],
+   "maxAudioListening": 0,
+   "maxAudioSpeaking": 0,
+   "lastMessages": []
+  },
+  "chat": {
+   "timeline": [
+    [
+     60737,
+     "EXECUTING",
+     "idle",
+     "executing",
+     "executing",
+     "executing",
+     "Explaining",
+     0.01
+    ],
+    [
+     61338,
+     "PROCESSING",
+     "synthesizing",
+     "thinking",
+     "thinking",
+     "thinking",
+     "Thinking",
+     0.01
+    ],
+    [
+     78901,
+     "SPEAKING",
+     "speaking",
+     "speaking",
+     "speaking",
+     "speaking",
+     "Talking",
+     0.01
+    ]
+   ],
+   "chatEvents": [
+    [
+     60717,
+     "tool",
+     "get_system_info"
+    ],
+    [
+     61301,
+     "tool_done",
+     "get_system_info"
+    ]
+   ],
+   "maxAudioSpeaking": 0.01
+  },
+  "camara": {
+   "camera": "active",
+   "handsWhileOn": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 34,
+    "L": null,
+    "R": null,
+    "avatarL": null,
+    "avatarR": null
+   },
+   "videoElements": 0,
+   "inferenceMs": null,
+   "cameraAfter": "off",
+   "handsAfterOff": null
+  }
+ },
+ "errors": [
+  "LOG INFO: Created TensorFlow Lite XNNPACK delegate for CPU. file:///D:/Atlas/desktop/electron/dist/mediapipe/wasm/vision_wasm_module_internal.js"
+ ],
+ "mainLog": [
+  "Error occurred in handler for 'atlas:invoke': Error: El acceso a internet está desactivado (WEB_ENABLED=false)."
+ ]
+}

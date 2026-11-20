@@ -1,0 +1,450 @@
+{
+ "cameraAfter": "off",
+ "handsAfter": null,
+ "clipsSeen": [
+  "Idle",
+  "Waving"
+ ],
+ "maxHands": 2,
+ "humanoidSides": [
+  "usuario R:Open",
+  "avatar L:Open",
+  "usuario L:Open",
+  "avatar R:Open"
+ ],
+ "videos": 0,
+ "log": [
+  {
+   "t": 5646,
+   "handCount": 0,
+   "inferenceMs": null,
+   "appGestures": [],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 0,
+    "L": null,
+    "R": null,
+    "avatarL": null,
+    "avatarR": null
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 11062,
+   "handCount": 1,
+   "inferenceMs": 954.3,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 7,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 13310,
+   "handCount": 1,
+   "inferenceMs": 840.9,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 10,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 15685,
+   "handCount": 1,
+   "inferenceMs": 743.4,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 14,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 18082,
+   "handCount": 2,
+   "inferenceMs": 741.5,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 17,
+    "L": "Open",
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": "Open"
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 23080,
+   "handCount": 2,
+   "inferenceMs": 639.5,
+   "appGestures": [
+    "open_hand",
+    "spread"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 24,
+    "L": "Open",
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": "Open"
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 25546,
+   "handCount": 2,
+   "inferenceMs": 632.6,
+   "appGestures": [
+    "open_hand",
+    "spread"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 28,
+    "L": "Open",
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": "Open"
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 27802,
+   "handCount": 0,
+   "inferenceMs": 463.7,
+   "appGestures": [],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 33,
+    "L": null,
+    "R": null,
+    "avatarL": null,
+    "avatarR": null
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 30252,
+   "handCount": 0,
+   "inferenceMs": 399.5,
+   "appGestures": [],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 39,
+    "L": null,
+    "R": null,
+    "avatarL": null,
+    "avatarR": null
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 32417,
+   "handCount": 1,
+   "inferenceMs": 422.2,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 44,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 34685,
+   "handCount": 1,
+   "inferenceMs": 456.2,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 47,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 36878,
+   "handCount": 1,
+   "inferenceMs": 508.8,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 51,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 39046,
+   "handCount": 1,
+   "inferenceMs": 496.8,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 55,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 41311,
+   "handCount": 1,
+   "inferenceMs": 543,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 58,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 43568,
+   "handCount": 2,
+   "inferenceMs": 610.7,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 61,
+    "L": "Open",
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": "Open"
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 45841,
+   "handCount": 2,
+   "inferenceMs": 598.5,
+   "appGestures": [
+    "open_hand",
+    "spread"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 64,
+    "L": "Open",
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": "Open"
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 48134,
+   "handCount": 2,
+   "inferenceMs": 610.9,
+   "appGestures": [
+    "open_hand",
+    "spread"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 68,
+    "L": "Open",
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": "Open"
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 50452,
+   "handCount": 2,
+   "inferenceMs": 707.4,
+   "appGestures": [
+    "open_hand",
+    "spread"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 70,
+    "L": "Open",
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": "Open"
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 54762,
+   "handCount": 0,
+   "inferenceMs": 698.8,
+   "appGestures": [],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 75,
+    "L": null,
+    "R": null,
+    "avatarL": null,
+    "avatarR": null
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 57467,
+   "handCount": 1,
+   "inferenceMs": 613.1,
+   "appGestures": [],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 79,
+    "L": null,
+    "R": null,
+    "avatarL": null,
+    "avatarR": null
+   },
+   "clip": "Idle",
+   "state": "idle"
+  },
+  {
+   "t": 59832,
+   "handCount": 1,
+   "inferenceMs": 682.8,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 82,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 62160,
+   "handCount": 1,
+   "inferenceMs": 686.6,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 85,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Waving",
+   "state": "idle"
+  },
+  {
+   "t": 64462,
+   "handCount": 1,
+   "inferenceMs": 651.7,
+   "appGestures": [
+    "open_hand"
+   ],
+   "humanoidHands": {
+    "provider": "ATLAS",
+    "status": "running",
+    "frames": 88,
+    "L": null,
+    "R": "Open",
+    "avatarL": "Open",
+    "avatarR": null
+   },
+   "clip": "Idle",
+   "state": "idle"
+  }
+ ]
+}

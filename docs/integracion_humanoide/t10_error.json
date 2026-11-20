@@ -1,0 +1,55 @@
+{
+ "changes": [
+  [
+   2837,
+   "IDLE",
+   "idle",
+   "idle",
+   "Idle",
+   "idle"
+  ],
+  [
+   3049,
+   "THINKING",
+   "thinking",
+   "thinking",
+   "Thinking",
+   "thinking"
+  ],
+  [
+   5006,
+   "ERROR",
+   "thinking",
+   "thinking",
+   "Thinking",
+   "thinking"
+  ],
+  [
+   5105,
+   "ERROR",
+   "error",
+   "error",
+   "Idle",
+   "error"
+  ],
+  [
+   7640,
+   "ERROR",
+   "idle",
+   "idle",
+   "Idle",
+   "idle"
+  ],
+  [
+   7679,
+   "ERROR",
+   "error",
+   "error",
+   "Idle",
+   "error"
+  ]
+ ],
+ "msg": [
+  "ATLASNo se pudo conectar con el servicio local de ATLAS. net::ERR_CONNECTION_REFUSEDCopiar"
+ ]
+}

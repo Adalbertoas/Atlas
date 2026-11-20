@@ -1,0 +1,83 @@
+{
+ "format": "atlas-particles-v1",
+ "count": 131072,
+ "layout": "tri:u32[n] bary:f32[2n] seed:f32[n] region:u8[n]",
+ "regions": [
+  "head",
+  "torso",
+  "arm",
+  "hand",
+  "leg"
+ ],
+ "glb": "ATLAS_humanoid_v004.glb",
+ "glbSha256": "1007ee02750d5d5fefd85c1b41fa1d06555545c6962c8aa07dec557991e51292",
+ "three": "164",
+ "options": {
+  "seed": 20261119,
+  "levels": {
+   "LOW": 16384,
+   "MEDIUM": 65536,
+   "HIGH": 131072
+  },
+  "candidateFactor": 3,
+  "density": {
+   "head": 1.7,
+   "torso": 1.25,
+   "arm": 1,
+   "hand": 2.4,
+   "leg": 0.85
+  },
+  "normalCos": -0.2
+ },
+ "hash": "c39068c1",
+ "generatedMs": 3506,
+ "stats": {
+  "vertices": 22393,
+  "triangles": 44962,
+  "candidates": 393216,
+  "levels": {
+   "LOW": 16384,
+   "MEDIUM": 65536,
+   "HIGH": 131072
+  },
+  "seed": 20261119,
+  "density": {
+   "head": 1.7,
+   "torso": 1.25,
+   "arm": 1,
+   "hand": 2.4,
+   "leg": 0.85
+  },
+  "areaM2": 2.113162210339989,
+  "areaByRegionM2": {
+   "head": 0.18283484638293324,
+   "torso": 0.5690055404937935,
+   "arm": 0.3874198677136851,
+   "hand": 0.11643484467255642,
+   "leg": 0.8574671110770461
+  },
+  "perRegion": {
+   "LOW": {
+    "head": 2095,
+    "torso": 4813,
+    "arm": 2649,
+    "hand": 1866,
+    "leg": 4961
+   },
+   "MEDIUM": {
+    "head": 8405,
+    "torso": 19344,
+    "arm": 10564,
+    "hand": 7487,
+    "leg": 19736
+   },
+   "HIGH": {
+    "head": 16812,
+    "torso": 38486,
+    "arm": 21093,
+    "hand": 15126,
+    "leg": 39555
+   }
+  }
+ }
+}
