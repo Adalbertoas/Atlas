@@ -48,3 +48,6 @@ certs/
 ## Modelos descargados y huella de voz (dato biometrico: nunca al repo)
 .cache/
 backend/speaker_profile.json
+
+# Despliegue: claves del servidor y del túnel (generadas por prepare_secrets.py)
+deploy/oracle/secrets/

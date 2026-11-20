@@ -3,11 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.api.v1 import (
+    agent,
     auth,
     automations,
     chat,
     creative,
     devices,
+    files,
     gestures,
     memory,
     notifications,
@@ -47,8 +49,11 @@ api_router.include_router(world.router, dependencies=[_protected])
 api_router.include_router(reminders.router, dependencies=[_protected])
 api_router.include_router(widgets.router, dependencies=[_protected])
 api_router.include_router(creative.router, dependencies=[_protected])
+api_router.include_router(files.router, dependencies=[_protected])
 
 # El WebSocket de gestos se autentica solo (el primer mensaje trae el
 # token) — HTTPBearer (usado por get_current_user) no aplica a handshakes
 # de WebSocket del navegador, que no pueden mandar headers custom.
 api_router.include_router(gestures.router)
+# El agente de la PC: su WebSocket se autentica con AGENT_TOKEN (ver agent.py).
+api_router.include_router(agent.router)

@@ -227,3 +227,32 @@ nav button.active svg{color:var(--hud-cyan);filter:drop-shadow(0 0 5px var(--hud
 /* El usuario pidió menos movimiento: el HUD queda quieto. */
 .reduce-motion .hud-reticle .ring,.reduce-motion .profile-orb i,.reduce-motion .sidebar:after,.reduce-motion .topbar:after{animation:none!important}
 @media (prefers-reduced-motion:reduce){.hud-reticle .ring,.profile-orb i,.sidebar:after,.topbar:after{animation:none}}
+
+/* Adjuntos del chat: bandeja sobre el cuadro de texto, miniaturas en la burbuja y capa al arrastrar. */
+.attachment-tray{display:flex;gap:8px;padding:10px 18px 0;overflow-x:auto;border-top:1px solid var(--hud-line)}
+.attachment-tray figure{position:relative;flex:none;width:76px;margin:0;border:1px solid var(--hud-line-2);border-radius:3px;background:rgba(2,12,22,.85);overflow:hidden}
+.attachment-tray img,.attachment-tray .attachment-pdf{display:block;width:100%;height:56px;object-fit:cover}
+.attachment-tray figcaption{padding:3px 5px;font-size:9.5px;color:var(--hud-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.attachment-tray button{position:absolute;top:2px;right:2px;width:18px;height:18px;display:grid;place-items:center;border-radius:50%;background:rgba(2,12,22,.85);color:var(--hud-text);font-size:13px;line-height:1}
+.attachment-tray button:hover{background:var(--hud-red);color:#fff}
+.attachment-pdf{display:grid!important;place-items:center;background:rgba(255,93,108,.14);color:var(--hud-red);font:600 12px var(--hud-mono)}
+.sent-attachments{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px;justify-content:flex-end}
+.sent-attachments button{padding:0;border:1px solid var(--hud-line-2);border-radius:3px;overflow:hidden}
+.sent-attachments img{display:block;max-width:180px;max-height:140px;object-fit:cover}
+.sent-file{display:flex;align-items:center;gap:6px;padding:3px 8px 3px 3px;border:1px solid var(--hud-line-2);border-radius:3px;font-size:11px}
+.sent-file .attachment-pdf{width:28px;height:28px;font-size:9px}
+.drop-overlay{position:fixed;inset:0;z-index:200;display:grid;place-items:center;pointer-events:none;background:rgba(1,8,15,.62);backdrop-filter:blur(2px)}
+.drop-overlay>div{display:grid;justify-items:center;gap:8px;padding:30px 44px;border:1px dashed var(--hud-cyan);border-radius:4px;background:rgba(2,14,25,.92);box-shadow:0 0 40px rgba(63,230,255,.25);color:var(--hud-text)}
+.drop-overlay svg{color:var(--hud-cyan)}
+.drop-overlay b{font-family:var(--hud-display);font-size:18px;letter-spacing:.06em}
+.drop-overlay small{color:var(--hud-muted);font-size:11px}
+.file-cards{display:grid;gap:6px;margin:8px 0 4px}
+.file-card{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--hud-line-2);border-radius:3px;background:rgba(2,12,22,.7)}
+.file-card-icon{flex:none;width:38px;height:38px;display:grid;place-items:center;border-radius:3px;background:var(--hud-fill-2);color:var(--hud-cyan);font:700 10px var(--hud-mono)}
+.file-card-icon.is-excel{background:rgba(33,163,102,.2);color:#3ddc84;border:1px solid rgba(61,220,132,.45)}
+.file-card-copy{min-width:0;flex:1;display:grid;gap:2px}
+.file-card-copy b{color:var(--hud-text);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-card-copy small{color:var(--hud-muted);font-size:10px}
+.atlas-message .file-card button{flex:none;padding:6px 10px;border:1px solid var(--hud-line-2);border-radius:3px;font-size:11px;color:var(--hud-text)}
+.atlas-message .file-card button:hover{border-color:var(--hud-cyan);background:var(--hud-fill-2)}
+.atlas-message .file-card .file-card-primary{border-color:var(--hud-cyan);background:rgba(63,230,255,.16);color:#fff}

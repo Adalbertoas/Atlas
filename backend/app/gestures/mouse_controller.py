@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import ctypes
 
-import pyautogui
-
-pyautogui.FAILSAFE = True  # mover el mouse a una esquina de la pantalla aborta — protección estándar
-pyautogui.MINIMUM_DURATION = 0
-pyautogui.PAUSE = 0  # sin la pausa de 0.1s por defecto entre llamadas: necesitamos baja latencia
+try:  # sin pantalla (servidor Linux) pyautogui ni siquiera se puede importar
+    import pyautogui
+except Exception:  # noqa: BLE001
+    pyautogui = None
+else:
+    pyautogui.FAILSAFE = True  # mover el mouse a una esquina de la pantalla aborta — protección estándar
+    pyautogui.MINIMUM_DURATION = 0
+    pyautogui.PAUSE = 0  # sin la pausa de 0.1s por defecto entre llamadas: necesitamos baja latencia
 
 SMOOTHING_ALPHA = 0.35  # media móvil exponencial: 0 = sin movimiento, 1 = sin suavizado
 SCROLL_SENSITIVITY = 4000  # multiplica el delta normalizado (0-1) antes de mandarlo a pyautogui.scroll

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from app.ai.base import ToolSchema
 from app.tools.base import Tool
+from app.tools.pc_tools import build_pc_tools
 
 
 class ToolRegistry:
@@ -31,12 +32,6 @@ class ToolRegistry:
 def build_default_registry() -> ToolRegistry:
     """Instancia el registry con las tools base de ATLAS (V1: sección 25;
     Fase 4: + control de Windows, sección 12)."""
-    from app.tools.computer.close_application import CloseApplicationTool
-    from app.tools.computer.open_application import OpenApplicationTool
-    from app.tools.computer.open_file import OpenFileTool
-    from app.tools.filesystem.list_files import ListFilesTool
-    from app.tools.filesystem.search_files import SearchFilesTool
-    from app.tools.media.control_media import ControlMediaTool
     from app.tools.automation.run_routine import RunRoutineTool
     from app.tools.memory_tools.create_memory import CreateMemoryTool
     from app.tools.memory_tools.search_memory import SearchMemoryTool
@@ -44,25 +39,16 @@ def build_default_registry() -> ToolRegistry:
     from app.tools.smart_home.list_devices import ListDevicesTool
     from app.tools.smart_home.set_device_state import SetDeviceStateTool
     from app.tools.system.get_current_time import GetCurrentTimeTool
-    from app.tools.system.get_system_info import GetSystemInfoTool
-    from app.tools.system.list_processes import ListProcessesTool
-    from app.tools.vision.analyze_screenshot import AnalyzeScreenshotTool
     from app.config import get_settings
     from app.tools.briefing.daily_briefing import DailyBriefingTool
-    from app.tools.computer.clipboard import ReadClipboardTool, WriteClipboardTool
-    from app.tools.computer.manage_window import ManageWindowTool
-    from app.tools.computer.save_screenshot import SaveScreenshotTool
     from app.tools.everyday.everyday_tools import (
         CalculateTool,
         ConvertCurrencyTool,
         GeneratePasswordTool,
         GetNewsTool,
         GetWeatherTool,
-        LockComputerTool,
-        OpenWebsiteTool,
-        SetVolumeTool,
     )
-    from app.tools.filesystem.search_documents import SearchDocumentsTool
+    from app.tools.office.spreadsheet import CreateSpreadsheetTool
     from app.tools.reminders.reminder_tools import CancelReminderTool, CreateReminderTool, ListRemindersTool
     from app.tools.web.web_tools import ReadWebPageTool, WebSearchTool
     from app.tools.world.alerts import CreateWorldAlertTool, DeleteWorldAlertTool, ListWorldAlertsTool
@@ -79,36 +65,29 @@ def build_default_registry() -> ToolRegistry:
 
     registry = ToolRegistry()
     for tool in (
-        GetSystemInfoTool(),
         GetCurrentTimeTool(),
-        OpenApplicationTool(),
-        CloseApplicationTool(),
-        ListProcessesTool(),
-        OpenFileTool(),
-        ControlMediaTool(),
-        ListFilesTool(),
-        SearchFilesTool(),
         CreateMemoryTool(),
         SearchMemoryTool(),
         ListDevicesTool(smart_home_provider),
         SetDeviceStateTool(smart_home_provider, event_bus),
         ControlRoomTool(smart_home_provider, event_bus),
-        AnalyzeScreenshotTool(vision_provider),
-        ReadClipboardTool(),
-        WriteClipboardTool(),
-        ManageWindowTool(),
-        SaveScreenshotTool(),
-        SearchDocumentsTool(),
         CreateReminderTool(),
         ListRemindersTool(),
         CancelReminderTool(),
         CalculateTool(),
         GeneratePasswordTool(),
-        OpenWebsiteTool(),
-        SetVolumeTool(),
-        LockComputerTool(),
+        CreateSpreadsheetTool(),
     ):
         registry.register(tool)
+
+    # Tools que tocan la PC: en la PC corren aquí mismo; con el backend en un
+    # servidor (PC_TOOLS_MODE=agent) las ejecuta el agente de la PC.
+    from app.agent.hub import agent_hub
+    from app.tools.remote import RemoteTool
+
+    remote = get_settings().pc_tools_mode == "agent"
+    for tool in build_pc_tools(vision_provider):
+        registry.register(RemoteTool(tool, agent_hub) if remote else tool)
 
     settings = get_settings()
     if settings.web_enabled:

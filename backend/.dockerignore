@@ -1,0 +1,11 @@
+.venv
+**/__pycache__
+*.pyc
+.env
+*.env
+*.db
+*.db-journal
+speaker_profile.json
+tests
+scripts
+.pytest_cache

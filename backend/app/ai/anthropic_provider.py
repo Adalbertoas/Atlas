@@ -17,7 +17,26 @@ from app.ai.base import AIMessage, AIProvider, AIResponse, ToolCall, ToolSchema
 _ROLE_MAP = {"user": "user", "assistant": "assistant"}
 
 
+def _user_content(m: AIMessage) -> str | list[dict[str, Any]]:
+    """Texto del usuario, o bloques imagen/documento + texto si trae adjuntos."""
+    if not m.attachments:
+        return m.content
+    blocks: list[dict[str, Any]] = []
+    for attachment in m.attachments:
+        if attachment.detail:
+            blocks.append({
+                "type": "text",
+                "text": f"Recorte ampliado de '{attachment.name}' ({attachment.detail}), para leer la letra chica:",
+            })
+        source = {"type": "base64", "media_type": attachment.mime_type, "data": attachment.data}
+        blocks.append({"type": "image" if attachment.kind == "image" else "document", "source": source})
+    blocks.append({"type": "text", "text": m.content or "Analiza el archivo adjunto."})
+    return blocks
+
+
 class AnthropicProvider(AIProvider):
+    supports_attachments = True
+
     def __init__(self, api_key: str, model: str, max_tokens: int = 1024) -> None:
         if not api_key:
             raise ValueError(
@@ -72,15 +91,18 @@ class AnthropicProvider(AIProvider):
                         {"type": "tool_use", "id": call.id, "name": call.name, "input": call.arguments}
                     )
                 anthropic_messages.append({"role": "assistant", "content": content})
+            elif m.role == "user":
+                anthropic_messages.append({"role": "user", "content": _user_content(m)})
             else:
                 anthropic_messages.append({"role": _ROLE_MAP[m.role], "content": m.content})
 
         kwargs: dict[str, Any] = dict(
             model=self._model,
             max_tokens=self._max_tokens,
-            system=system_prompt or None,
             messages=anthropic_messages,
         )
+        if system_prompt:  # la API rechaza system=None
+            kwargs["system"] = system_prompt
         if tools:
             kwargs["tools"] = self._to_anthropic_tools(tools)
 

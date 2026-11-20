@@ -7,6 +7,8 @@ import os from "node:os";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { promisify } from "node:util";
+import { randomUUID } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 const exec = promisify(execFile);
 // App instalada: el backend viaja dentro del instalador (resources/backend, con
 // un Python portable en resources/python y los modelos en resources/models) y
@@ -30,6 +32,15 @@ if (bundled) {
   process.env.ATLAS_API_URL ??= "http://127.0.0.1:8000";
   process.env.ATLAS_CERT_PATH ??= path.join(process.resourcesPath, "no-cert.pem");
   if (bundledEnv.ATLAS_PASSWORD) process.env.ATLAS_PASSWORD ??= bundledEnv.ATLAS_PASSWORD;
+}
+// En desarrollo, la contraseña sale del mismo backend/.env que usa el backend
+// (con AUTH_ENABLED=true, sin esto la app de escritorio no podía iniciar sesión).
+if (!bundled) {
+  const devEnv = readDotEnv(path.resolve(__dirname, "../../../backend/.env"));
+  if (devEnv.ATLAS_PASSWORD) process.env.ATLAS_PASSWORD ??= devEnv.ATLAS_PASSWORD;
+  // Con ATLAS en el servidor (https://atlas.sirinetrd.com), ATLAS_API_URL en backend/.env
+  // hace que la app de escritorio hable con él en vez del backend local.
+  if (devEnv.ATLAS_API_URL) process.env.ATLAS_API_URL ??= devEnv.ATLAS_API_URL;
 }
 let backendProcess: ChildProcess | null = null;
 function startBundledBackend() {
@@ -64,7 +75,7 @@ function stopBundledBackend() {
   backendProcess = null;
 }
 let window: BrowserWindow | null = null;
-const allow = new Set(["system:status", "system:processes", "files:pick", "atlas:chat", "atlas:confirm", "atlas:api","atlas:service-status", "atlas:transcribe", "atlas:speak", "atlas:speaker-status", "atlas:speaker-enroll", "atlas:speaker-delete", "layout:load", "layout:save", "creative:open-folder"]);
+const allow = new Set(["system:status", "system:processes", "files:pick", "atlas:chat", "atlas:confirm", "atlas:api","atlas:service-status", "atlas:transcribe", "atlas:speak", "atlas:speaker-status", "atlas:speaker-enroll", "atlas:speaker-delete", "layout:load", "layout:save", "creative:open-folder", "files:save", "files:open", "files:reveal"]);
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 const layoutPath = () => path.join(app.getPath("userData"), "atlas-layout.json");
 // El backend sirve HTTPS con un certificado autofirmado de desarrollo cuando
@@ -137,21 +148,90 @@ async function atlasLogin() {
   return atlasToken;
 }
 type ChatImage = { mime_type: string; data: string };
+// Archivos que generó ATLAS (ej. un Excel). El renderer solo recibe un id: la ruta
+// real queda aquí, así la ventana no puede pedir abrir o copiar archivos arbitrarios.
+type BackendFile = { name: string; mime_type: string; size: number; path: string };
+const generatedFiles = new Map<string, BackendFile>();
+function exposeFiles(files: BackendFile[] | undefined) {
+  return (files ?? []).map((file) => {
+    const id = randomUUID();
+    generatedFiles.set(id, file);
+    return { id, name: file.name, size: file.size, mimeType: file.mime_type };
+  });
+}
+function generatedFile(input: unknown) {
+  const file = generatedFiles.get(String((input as { id?: unknown })?.id ?? ""));
+  if (!file) throw new Error("Ese archivo ya no esta disponible. Pidele a ATLAS que lo genere de nuevo.");
+  return file;
+}
+// Baja el archivo del backend (sirve aunque el backend corra en otra PC).
+async function downloadGeneratedFile(file: BackendFile, target: string) {
+  const token = await atlasLogin();
+  const response = await backendFetch(`${atlasApiUrl}/api/v1/files/${encodeURIComponent(file.name)}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(60000) });
+  if (response.status === 401) { atlasToken = null; throw new Error("La sesion con ATLAS expiro. Intenta de nuevo."); }
+  if (!response.ok) throw new Error(response.status === 404 ? "El archivo ya no existe en Documentos/ATLAS." : `No se pudo descargar el archivo (HTTP ${response.status}).`);
+  await writeFile(target, Buffer.from(await response.arrayBuffer()));
+  return target;
+}
+async function saveGeneratedFile(input: unknown) {
+  const file = generatedFile(input);
+  const extension = path.extname(file.name).slice(1);
+  const options = { title: "Guardar archivo de ATLAS", defaultPath: path.join(app.getPath("downloads"), file.name), filters: extension ? [{ name: extension.toUpperCase(), extensions: [extension] }] : [] };
+  const picked = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options);
+  if (picked.canceled || !picked.filePath) return null;
+  await downloadGeneratedFile(file, picked.filePath);
+  return picked.filePath;
+}
+async function openGeneratedFile(input: unknown) {
+  const file = generatedFile(input);
+  // Backend en esta misma PC: se abre el original; si no, se baja primero a Descargas.
+  const target = existsSync(file.path) ? file.path : await downloadGeneratedFile(file, path.join(app.getPath("downloads"), file.name));
+  const error = await shell.openPath(target);
+  if (error) throw new Error(error);
+  return target;
+}
+function revealGeneratedFile(input: unknown) {
+  const file = generatedFile(input);
+  if (!existsSync(file.path)) throw new Error("El archivo esta en otra PC; usa Descargar.");
+  shell.showItemInFolder(file.path);
+  return true;
+}
+// Adjuntos del chat (arrastrar, pegar o el clip): imágenes y PDF en base64. El
+// backend vuelve a validarlos; aquí solo se filtra lo obviamente inválido.
+const ATTACHMENT_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"]);
+const MAX_ATTACHMENTS = 6;
+const MAX_ATTACHMENT_B64 = Math.ceil((20 * 1024 * 1024) / 3) * 4;
+function chatAttachments(raw: unknown) {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) throw new Error("Adjuntos invalidos.");
+  if (raw.length > MAX_ATTACHMENTS) throw new Error(`Puedo recibir hasta ${MAX_ATTACHMENTS} archivos por mensaje.`);
+  return raw.map((item) => {
+    const { name, mimeType, data } = (item ?? {}) as { name?: unknown; mimeType?: unknown; data?: unknown };
+    if (typeof mimeType !== "string" || !ATTACHMENT_TYPES.has(mimeType)) throw new Error("Solo puedo recibir imagenes (PNG, JPG, WEBP, GIF) o PDF.");
+    if (typeof data !== "string" || !data || data.length > MAX_ATTACHMENT_B64 || !/^[A-Za-z0-9+/]+=*$/.test(data)) throw new Error("Un adjunto esta vacio o pesa mas de 20 MB.");
+    return { name: typeof name === "string" ? name.slice(0, 120) : "", mime_type: mimeType, data };
+  });
+}
 async function atlasChat(input: unknown) {
   const message = typeof (input as { message?: unknown })?.message === "string" ? (input as { message: string }).message.trim() : "";
-  if (!message) throw new Error("El mensaje no puede estar vacio.");
+  const attachments = chatAttachments((input as { attachments?: unknown })?.attachments);
+  if (!message && !attachments.length) throw new Error("El mensaje no puede estar vacio.");
   // La misma conversación entre mensajes: sin esto ATLAS olvidaba lo dicho un mensaje antes.
   const conversationId = typeof (input as { conversationId?: unknown })?.conversationId === "string" ? (input as { conversationId: string }).conversationId : undefined;
   const token = await atlasLogin();
   const response = await backendFetch(`${atlasApiUrl}/api/v1/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, conversation_id: conversationId }),
+    body: JSON.stringify({ message, conversation_id: conversationId, attachments }),
     signal: AbortSignal.timeout(180000), // con imágenes o dibujos la respuesta puede tardar
   });
   if (response.status === 401) { atlasToken = null; throw new Error("La sesion con ATLAS expiro. Intenta de nuevo."); }
-  if (!response.ok) throw new Error(`El backend no pudo completar la consulta (HTTP ${response.status}).`);
-  const body = await response.json() as { reply?: string; conversation_id?: string; requires_confirmation?: boolean; confirmation_id?: string; confirmation_description?: string; images?: ChatImage[] };
+  if (!response.ok) {
+    // 400 = adjunto rechazado: el backend explica por qué (tipo, tamaño, archivo dañado).
+    const detail = await response.json().then((b: { detail?: unknown }) => b?.detail, () => null);
+    throw new Error(typeof detail === "string" ? detail : `El backend no pudo completar la consulta (HTTP ${response.status}).`);
+  }
+  const body = await response.json() as { reply?: string; conversation_id?: string; requires_confirmation?: boolean; confirmation_id?: string; confirmation_description?: string; images?: ChatImage[]; files?: BackendFile[] };
   return {
     configured: true,
     text: body.reply ?? (body.requires_confirmation ? "" : "Sin respuesta."),
@@ -160,6 +240,7 @@ async function atlasChat(input: unknown) {
     confirmationId: body.confirmation_id,
     confirmationDescription: body.confirmation_description,
     images: body.images ?? [],
+    files: exposeFiles(body.files),
   };
 }
 // Aprobar o rechazar una acción que el backend dejó pendiente de confirmación.
@@ -175,8 +256,8 @@ async function atlasConfirm(input: unknown) {
   });
   if (response.status === 401) { atlasToken = null; throw new Error("La sesion con ATLAS expiro. Intenta de nuevo."); }
   if (!response.ok) throw new Error(`No se pudo confirmar la accion (HTTP ${response.status}).`);
-  const body = await response.json() as { reply?: string; images?: ChatImage[] };
-  return { text: body.reply ?? "", images: body.images ?? [] };
+  const body = await response.json() as { reply?: string; images?: ChatImage[]; files?: BackendFile[] };
+  return { text: body.reply ?? "", images: body.images ?? [], files: exposeFiles(body.files) };
 }
 // Paneles del escritorio (memoria, recordatorios, actividad, personalidad, widgets):
 // solo estas rutas y métodos, para que el renderer no pueda usar todo el backend.
@@ -309,4 +390,4 @@ function guardNavigation(win: BrowserWindow) {
   win.webContents.setWindowOpenHandler(({ url: target }) => { external(target); return { action: "deny" }; });
   win.webContents.on("will-navigate", (event, target) => { if (target !== win.webContents.getURL()) { event.preventDefault(); external(target); } });
 }
-app.whenReady().then(() => { ipcMain.handle("atlas:invoke", async (_event, channel: string, input?: unknown) => { if (!allow.has(channel)) throw new Error("Operación no permitida."); if (channel === "system:status") return systemStatus(); if (channel === "system:processes") { try { return JSON.parse(await powershell("Get-Process | Sort-Object CPU -Descending | Select-Object -First 30 ProcessName,Id,CPU,WorkingSet64 | ConvertTo-Json -Compress")); } catch { return []; } } if (channel === "files:pick") { const picked = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] }); return picked.canceled ? [] : picked.filePaths.map((filePath) => path.basename(filePath)); } if (channel === "layout:load") { try { return JSON.parse(await (await import("node:fs/promises")).readFile(layoutPath(), "utf8")); } catch { return null; } } if (channel === "layout:save") { await (await import("node:fs/promises")).writeFile(layoutPath(), JSON.stringify(input)); return true; } if (channel === "atlas:service-status") return serviceStatus(); if (channel === "atlas:chat") return atlasChat(input); if (channel === "atlas:confirm") return atlasConfirm(input); if (channel === "atlas:api") return atlasApi(input); if (channel === "atlas:transcribe") return atlasTranscribe(input); if (channel === "atlas:speak") return atlasSpeak(input); if (channel === "atlas:speaker-status") return atlasSpeakerRequest("GET"); if (channel === "atlas:speaker-delete") return atlasSpeakerRequest("DELETE"); if (channel === "atlas:speaker-enroll") return atlasSpeakerEnroll(input); if (channel === "creative:open-folder") return openCreationsFolder(); return null; }); restrictPermissions(); trustDevCertificate(); if (bundled) backendReady = ensureBundledBackend(); createWindow(); app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); }); }); app.on("will-quit", stopBundledBackend); app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
+app.whenReady().then(() => { ipcMain.handle("atlas:invoke", async (_event, channel: string, input?: unknown) => { if (!allow.has(channel)) throw new Error("Operación no permitida."); if (channel === "system:status") return systemStatus(); if (channel === "system:processes") { try { return JSON.parse(await powershell("Get-Process | Sort-Object CPU -Descending | Select-Object -First 30 ProcessName,Id,CPU,WorkingSet64 | ConvertTo-Json -Compress")); } catch { return []; } } if (channel === "files:pick") { const picked = await dialog.showOpenDialog({ properties: ["openFile", "multiSelections"] }); return picked.canceled ? [] : picked.filePaths.map((filePath) => path.basename(filePath)); } if (channel === "layout:load") { try { return JSON.parse(await (await import("node:fs/promises")).readFile(layoutPath(), "utf8")); } catch { return null; } } if (channel === "layout:save") { await (await import("node:fs/promises")).writeFile(layoutPath(), JSON.stringify(input)); return true; } if (channel === "atlas:service-status") return serviceStatus(); if (channel === "atlas:chat") return atlasChat(input); if (channel === "atlas:confirm") return atlasConfirm(input); if (channel === "atlas:api") return atlasApi(input); if (channel === "atlas:transcribe") return atlasTranscribe(input); if (channel === "atlas:speak") return atlasSpeak(input); if (channel === "atlas:speaker-status") return atlasSpeakerRequest("GET"); if (channel === "atlas:speaker-delete") return atlasSpeakerRequest("DELETE"); if (channel === "atlas:speaker-enroll") return atlasSpeakerEnroll(input); if (channel === "creative:open-folder") return openCreationsFolder(); if (channel === "files:save") return saveGeneratedFile(input); if (channel === "files:open") return openGeneratedFile(input); if (channel === "files:reveal") return revealGeneratedFile(input); return null; }); restrictPermissions(); trustDevCertificate(); if (bundled) backendReady = ensureBundledBackend(); createWindow(); app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) createWindow(); }); }); app.on("will-quit", stopBundledBackend); app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });

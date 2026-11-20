@@ -138,6 +138,7 @@ def test_tools_endpoint_lists_all_base_tools(client, auth_headers):
         "open_website",
         "set_volume",
         "lock_computer",
+        "create_spreadsheet",
         "get_weather",
         "get_news",
         "convert_currency",

@@ -4,11 +4,7 @@ parte de la misma respuesta, ver docs/architecture.md).
 """
 from __future__ import annotations
 
-import base64
-import io
-
 import anthropic
-from PIL import Image
 
 from app.vision.base import VisionProvider
 
@@ -19,7 +15,7 @@ _DEFAULT_QUESTION = (
 
 
 class AnthropicVisionProvider(VisionProvider):
-    def __init__(self, api_key: str, model: str, max_tokens: int = 1024) -> None:
+    def __init__(self, api_key: str, model: str, max_tokens: int = 4096) -> None:
         if not api_key:
             raise ValueError(
                 "ANTHROPIC_API_KEY vacío. Configura tu key en .env o usa VISION_PROVIDER=mock."
@@ -29,12 +25,11 @@ class AnthropicVisionProvider(VisionProvider):
         self._max_tokens = max_tokens
 
     def analyze(self, image_bytes: bytes, question: str | None = None) -> str:
-        # Normaliza a PNG: la imagen puede venir en cualquier formato (captura
-        # de pantalla, foto del celular) y esto evita adivinar el media_type.
-        image = Image.open(io.BytesIO(image_bytes))
-        buffer = io.BytesIO()
-        image.convert("RGB").save(buffer, format="PNG")
-        encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+        # La imagen puede venir en cualquier formato y tamaño (captura de dos
+        # monitores, foto del celular): se acota a lo que acepta la API.
+        from app.core.attachments import normalize_image_bytes
+
+        media_type, encoded = normalize_image_bytes(image_bytes, "imagen")
 
         response = self._client.messages.create(
             model=self._model,
@@ -45,7 +40,7 @@ class AnthropicVisionProvider(VisionProvider):
                     "content": [
                         {
                             "type": "image",
-                            "source": {"type": "base64", "media_type": "image/png", "data": encoded},
+                            "source": {"type": "base64", "media_type": media_type, "data": encoded},
                         },
                         {"type": "text", "text": question or _DEFAULT_QUESTION},
                     ],

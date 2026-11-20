@@ -27,8 +27,18 @@ def health() -> dict:
 def status(_user: str = Depends(get_current_user)) -> dict:
     """Métricas de CPU/RAM/disco directas, sin pasar por la IA — para que el
     cliente de escritorio pueda sondear el estado del sistema cada pocos
-    segundos sin gastar tokens ni esperar una respuesta de Claude."""
-    return collect_system_info()
+    segundos sin gastar tokens ni esperar una respuesta de Claude.
+
+    Con el backend en un servidor (PC_TOOLS_MODE=agent) son los de la PC,
+    que informa el agente; sin agente conectado, vacíos con pc_online=false."""
+    if get_settings().pc_tools_mode == "agent":
+        from app.agent.hub import agent_hub
+
+        status = agent_hub.fresh_status()
+        if status is None:
+            return {"pc_online": False, "cpu_percent": None, "ram_percent": None}
+        return {**status, "pc_online": True}
+    return {**collect_system_info(), "pc_online": True}
 
 
 @router.get("/activity")

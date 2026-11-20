@@ -31,11 +31,14 @@ def _build_ai_provider() -> AIProvider:
 
 @lru_cache
 def get_orchestrator() -> Orchestrator:
+    from app.vision.provider_factory import get_vision_provider
+
     return Orchestrator(
         ai_provider=_build_ai_provider(),
         registry=tool_registry,
         permissions=permission_manager,
         events=event_bus,
+        vision=get_vision_provider(),
     )
 
 

@@ -40,7 +40,8 @@ class AnalyzeScreenshotTool(Tool):
 
     def execute(self, params: dict, context: ToolContext) -> ToolResult:
         try:
-            screenshot = ImageGrab.grab()
+            # all_screens: con dos monitores, la imagen puede estar en el secundario.
+            screenshot = ImageGrab.grab(all_screens=True)
         except Exception as exc:  # noqa: BLE001 — ej. sin entorno gráfico disponible
             return ToolResult(success=False, error=f"No pude capturar la pantalla: {exc}")
 

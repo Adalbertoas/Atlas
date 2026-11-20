@@ -5,13 +5,16 @@ Nunca se deben hardcodear credenciales aquí ni en ningún otro módulo.
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # ATLAS_ENV_FILE: otro .env (en el servidor, /data/server.env, en el disco que sobrevive a
+    # reconstruir el contenedor; ahí se guardan también los cambios hechos desde la app).
+    model_config = SettingsConfigDict(env_file=os.environ.get("ATLAS_ENV_FILE", ".env"), env_file_encoding="utf-8", extra="ignore")
 
     app_env: str = "development"
     log_level: str = "INFO"
@@ -78,6 +81,15 @@ class Settings(BaseSettings):
     creative_model: str = "claude-opus-5-5"
     # Carpeta donde se guardan las creaciones. Vacío = Imágenes\ATLAS del usuario.
     creative_dir: str = ""
+    # Carpeta de los archivos que genera ATLAS (Excel, etc.). Vacío = Documentos\ATLAS.
+    output_dir: str = ""
+
+    # Dónde corren las tools que tocan la PC (abrir apps, pantalla, archivos, volumen):
+    # "local" = este mismo proceso (backend en la PC); "agent" = backend en un
+    # servidor y esas tools las ejecuta el agente de la PC (app/agent/).
+    pc_tools_mode: str = "local"
+    # Clave del agente de la PC para conectarse al servidor (solo con pc_tools_mode=agent).
+    agent_token: str = ""
 
     @property
     def is_production(self) -> bool:

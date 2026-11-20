@@ -3,6 +3,7 @@
     python scripts/start_atlas.py              # backend, dashboard, móvil y Mundo
     python scripts/start_atlas.py --desktop    # además el cliente de escritorio
     python scripts/start_atlas.py --no-world --no-mobile
+    python scripts/start_atlas.py --no-tunnel    # sin publicar en internet
 
 Cada servicio corre como proceso hijo; su salida se muestra con el nombre
 del servicio adelante. Si uno se cae, se avisa y el resto sigue corriendo.
@@ -39,6 +40,13 @@ class Service:
 
 def build_services(args: argparse.Namespace) -> list[Service]:
     python = sys.executable
+    if args.agente:
+        # ATLAS vive en el servidor (https://atlas.sirinetrd.com): en la PC solo
+        # corre el agente, que ejecuta lo que necesita Windows.
+        services = [Service("agente", ROOT / "backend", [python, "agent.py"])]
+        if args.desktop:
+            services.append(Service("escritorio", ROOT / "desktop", [python, "run.py"]))
+        return services
     services = [Service("backend", ROOT / "backend", [python, "run.py"], 8000, "API en el puerto 8000")]
     if not args.no_world:
         world_dir = ROOT / "integrations" / "gods-eye-view"
@@ -56,6 +64,15 @@ def build_services(args: argparse.Namespace) -> list[Service]:
         services.append(Service("movil", ROOT / "mobile", [python, "serve.py"], 5173, "puerto 5173"))
     if args.desktop:
         services.append(Service("escritorio", ROOT / "desktop", [python, "run.py"]))
+    if not args.no_tunnel:
+        # Publica el backend en internet (https://atlas.sirinetrd.com) con Cloudflare Tunnel.
+        # Ruta y config fuera del repo: CLOUDFLARED_EXE / CLOUDFLARED_CONFIG para cambiarlas.
+        exe = Path(os.environ.get("CLOUDFLARED_EXE", "D:/tools/cloudflared/cloudflared.exe"))
+        config = Path(os.environ.get("CLOUDFLARED_CONFIG", "D:/tools/cloudflared/config.yml"))
+        if exe.exists() and config.exists():
+            services.append(Service("tunel", exe.parent, [str(exe), "tunnel", "--config", str(config), "run"], None, "https://atlas.sirinetrd.com"))
+        else:
+            print("[atlas] Cloudflare Tunnel sin configurar: ATLAS queda solo en la red local.")
     return services
 
 
@@ -101,6 +118,8 @@ def main() -> int:
     parser.add_argument("--desktop", action="store_true", help="incluir el cliente de escritorio (wake word)")
     parser.add_argument("--no-world", action="store_true", help="no levantar Gods Eye View")
     parser.add_argument("--no-mobile", action="store_true", help="no levantar la PWA móvil")
+    parser.add_argument("--no-tunnel", action="store_true", help="no publicar ATLAS en internet (Cloudflare Tunnel)")
+    parser.add_argument("--agente", action="store_true", help="ATLAS corre en el servidor: en la PC solo el agente")
     args = parser.parse_args()
 
     running: list[tuple[Service, subprocess.Popen]] = []

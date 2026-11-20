@@ -3,19 +3,36 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.ai.base import AIAttachment
 from app.api.deps import get_db_session, get_orchestrator
+from app.core.attachments import AttachmentError, RawAttachment, normalize
 from app.core.orchestrator import ChatResult, Orchestrator
-from app.schemas.chat import ChatImage, ChatRequest, ChatResponse, ConfirmRequest, ConfirmResponse
+from app.schemas.chat import ChatFile, ChatImage, ChatRequest, ChatResponse, ConfirmRequest, ConfirmResponse
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 def _images(result: ChatResult) -> list[ChatImage]:
     return [ChatImage(mime_type=image.mime_type, data=image.data) for image in result.images]
+
+
+def _files(result: ChatResult) -> list[ChatFile]:
+    return [ChatFile(name=f.name, mime_type=f.mime_type, size=f.size, path=f.path) for f in result.files]
+
+
+def _attachments(body: ChatRequest) -> list[AIAttachment]:
+    """Valida los adjuntos y exige texto o archivo: un mensaje vacío no va al modelo."""
+    try:
+        attachments = normalize([RawAttachment(a.name, a.mime_type, a.data) for a in body.attachments])
+    except AttachmentError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not body.message.strip() and not attachments:
+        raise HTTPException(status_code=422, detail="El mensaje no puede estar vacío.")
+    return attachments
 
 
 def _to_response(result: ChatResult) -> ChatResponse:
@@ -26,6 +43,7 @@ def _to_response(result: ChatResult) -> ChatResponse:
         confirmation_id=result.confirmation_id,
         confirmation_description=result.confirmation_description,
         images=_images(result),
+        files=_files(result),
     )
 
 
@@ -35,7 +53,8 @@ def send_message(
     db: Session = Depends(get_db_session),
     orchestrator: Orchestrator = Depends(get_orchestrator),
 ) -> ChatResponse:
-    return _to_response(orchestrator.handle_message(db, body.message, body.conversation_id))
+    attachments = _attachments(body)
+    return _to_response(orchestrator.handle_message(db, body.message, body.conversation_id, attachments))
 
 
 @router.post("/stream")
@@ -47,10 +66,11 @@ def stream_message(
     """Igual que POST /chat, pero como Server-Sent Events: el texto llega a
     medida que el modelo lo genera. Cada evento es un JSON con `type`:
     start | delta | tool | done (este último trae lo mismo que ChatResponse)."""
+    attachments = _attachments(body)
 
     def events() -> Iterator[str]:
         try:
-            for event in orchestrator.stream_message(db, body.message, body.conversation_id):
+            for event in orchestrator.stream_message(db, body.message, body.conversation_id, attachments):
                 payload: dict = {"type": event.type}
                 if event.type == "start":
                     payload["conversation_id"] = event.conversation_id
@@ -84,4 +104,4 @@ def confirm_action(
         return ConfirmResponse(reply="Acción cancelada.")
 
     result = orchestrator.execute_confirmed(db, body.confirmation_id)
-    return ConfirmResponse(reply=result.reply or "", images=_images(result))
+    return ConfirmResponse(reply=result.reply or "", images=_images(result), files=_files(result))

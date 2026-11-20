@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fondo de arranque: el mismo azul casi negro del HUD, sin destello blanco. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <color android:color="#030A12" />
+    </item>
+</layer-list>

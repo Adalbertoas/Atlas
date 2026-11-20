@@ -1,0 +1,27 @@
+# Dependencias del backend en un servidor Linux (Docker, ver Dockerfile).
+# Sin lo que solo sirve en la PC con Windows (pyautogui, pyttsx3, sounddevice):
+# esas acciones las ejecuta el agente de la PC (agent.py).
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+SQLAlchemy==2.0.36
+anthropic==0.42.0
+psutil==6.1.1
+python-dotenv==1.0.1
+python-multipart==0.0.32
+PyJWT==2.13.0
+Pillow==12.3.0
+cryptography==50.0.1
+httpx==0.28.1
+requests==2.34.2
+
+# Voz: Whisper (oír) y Kokoro (hablar), locales en el servidor.
+faster-whisper==1.2.1
+kokoro>=0.9.4
+soundfile==0.14.0
+numpy==2.5.2
+
+# Documentos: buscar en PDF y armar Excel.
+pypdf>=5.0
+openpyxl==3.1.5

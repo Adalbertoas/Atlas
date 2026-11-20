@@ -1,0 +1,9 @@
+# Túnel "atlas" corriendo en el servidor: mismo túnel y dominio que en la PC,
+# pero apuntando al contenedor del backend.
+tunnel: c1fd37dd-95be-476d-adc6-3a6d6baf1fd0
+credentials-file: /etc/cloudflared/atlas-tunnel.json
+
+ingress:
+  - hostname: atlas.sirinetrd.com
+    service: http://atlas:8000
+  - service: http_status:404

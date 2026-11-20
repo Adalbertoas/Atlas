@@ -29,11 +29,27 @@ class ToolCall:
 
 
 @dataclass
+class AIAttachment:
+    """Imagen o PDF que el usuario adjuntó a su mensaje (ver app.core.attachments)."""
+
+    kind: Literal["image", "pdf"]
+    mime_type: str
+    data: str  # base64
+    name: str = ""
+    # Vacío = el archivo tal cual. Si no, es un recorte ampliado de la imagen
+    # `name` para leer letra chica, y dice cuál ("parte 1 de 3, de arriba hacia abajo").
+    detail: str = ""
+
+
+@dataclass
 class AIMessage:
     role: Literal["system", "user", "assistant", "tool"]
     content: str
     tool_call_id: str | None = None  # solo para role="tool"
     name: str | None = None  # solo para role="tool"
+    # Solo para role="user": archivos adjuntos que el modelo debe ver junto al texto.
+    # Únicamente se envían si el proveedor tiene supports_attachments.
+    attachments: list[AIAttachment] = field(default_factory=list)
     # Para role="assistant": tool_calls que el modelo pidió ejecutar en este
     # turno. Debe reenviarse al proveedor junto con el/los tool_result
     # correspondientes — varios proveedores (Anthropic incluido) exigen que
@@ -55,6 +71,10 @@ class AIResponse:
 
 class AIProvider(ABC):
     """Interfaz que debe implementar cualquier proveedor de IA de ATLAS."""
+
+    # True si el modelo puede ver imágenes/PDF adjuntos directamente. Si no, el
+    # Orchestrator se los describe en texto con el VisionProvider.
+    supports_attachments: bool = False
 
     @abstractmethod
     def chat(

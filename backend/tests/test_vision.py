@@ -30,7 +30,7 @@ def test_analyze_screenshot_is_high_risk():
 
 def test_analyze_screenshot_captures_and_analyzes(db_session, monkeypatch):
     fake_image = Image.new("RGB", (4, 4), color="red")
-    monkeypatch.setattr("app.tools.vision.analyze_screenshot.ImageGrab.grab", lambda: fake_image)
+    monkeypatch.setattr("app.tools.vision.analyze_screenshot.ImageGrab.grab", lambda **kwargs: fake_image)
 
     tool = AnalyzeScreenshotTool(MockVisionProvider())
     result = tool.execute({}, ToolContext(db=db_session))

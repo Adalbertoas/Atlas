@@ -1,0 +1,28 @@
+# ATLAS en un servidor (Oracle Cloud Always Free). En el servidor queda así:
+#   /opt/atlas/docker-compose.yml   (este archivo)
+#   /opt/atlas/backend/             (código del backend, con su Dockerfile)
+#   /opt/atlas/data/                (base de datos, Excel, voces, server.env: lo que debe sobrevivir)
+#   /opt/atlas/cloudflared/         (config.yml + credenciales del túnel)
+# No se abre ningún puerto: el túnel de Cloudflare sale hacia afuera.
+services:
+  atlas:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      TZ: America/Santo_Domingo   # recordatorios y "qué hora es" en hora de RD
+    volumes:
+      - ./data:/data
+    expose:
+      - "8000"
+
+  tunnel:
+    # Solo con --profile public (deploy.sh --publish): mientras la PC siga publicando
+    # atlas.sirinetrd.com, dos túneles activos repartirían las visitas entre ambos.
+    profiles: ["public"]
+    image: cloudflare/cloudflared:2026.11.1
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - atlas

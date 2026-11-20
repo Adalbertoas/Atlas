@@ -6,7 +6,10 @@ de su título; sin título se usa la que está en primer plano.
 from __future__ import annotations
 
 import ctypes
-from ctypes import wintypes
+import sys
+
+if sys.platform == "win32":  # en el servidor (Linux) estas tools las ejecuta el agente de la PC
+    from ctypes import wintypes
 
 from app.security.permissions import RiskLevel
 from app.tools.base import Tool, ToolContext, ToolResult

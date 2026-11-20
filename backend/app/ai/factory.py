@@ -23,7 +23,10 @@ def build_ai_provider(model: str | None = None, max_tokens: int | None = None) -
         return AnthropicProvider(
             api_key=settings.anthropic_api_key,
             model=model or settings.anthropic_model,
-            max_tokens=max_tokens or 1024,
+            # 8192: al pasar una tabla leída de una foto a create_spreadsheet, los
+            # datos viajan en la respuesta del modelo; con 1024 se cortaban.
+            # Es un tope, no un gasto: solo se cobra lo que se genera.
+            max_tokens=max_tokens or 8192,
         )
     from app.ai.mock_provider import MockProvider
 

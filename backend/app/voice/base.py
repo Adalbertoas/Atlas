@@ -37,6 +37,25 @@ class TextToSpeechProvider(ABC):
         """Convierte texto a audio (WAV)."""
         raise NotImplementedError
 
+    # --- Elegir la voz (solo los proveedores que tienen varias: Kokoro) ---
+
+    supports_voices: bool = False
+
+    @property
+    def voice(self) -> str | None:
+        return None
+
+    @property
+    def speed(self) -> float:
+        return 1.0
+
+    def set_voice(self, voice: str, speed: float | None = None) -> None:
+        raise NotImplementedError("Este proveedor de voz no permite elegir la voz.")
+
+    def synthesize_as(self, text: str, voice: str | None = None, speed: float | None = None) -> bytes:
+        """Como synthesize(), pero con otra voz solo para este audio (vista previa)."""
+        return self.synthesize(text)
+
 
 class VoiceMode(str, Enum):
     PUSH_TO_TALK = "PUSH_TO_TALK"

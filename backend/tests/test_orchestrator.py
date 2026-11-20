@@ -25,6 +25,17 @@ def test_ai_provider_failure_returns_friendly_message_instead_of_crashing(db_ses
     assert result.reply is not None
     assert "No pude conectar con la IA" in result.reply
     assert not result.requires_confirmation
+    # Mensaje corto en español (se lee en voz alta): sin el JSON del proveedor.
+    assert "sin crédito" in result.reply and "credit balance" not in result.reply
+
+
+def test_friendly_ai_errors():
+    from app.core.orchestrator import friendly_ai_error
+
+    assert "clave" in friendly_ai_error(RuntimeError("Error code: 401 - invalid x-api-key"))
+    assert "saturada" in friendly_ai_error(RuntimeError("Error code: 529 - overloaded_error"))
+    assert "internet" in friendly_ai_error(ConnectionError("Connection error."))
+    assert friendly_ai_error(ValueError("algo raro")).startswith("No pude conectar con la IA")
 
 
 class _ScriptedProvider(AIProvider):

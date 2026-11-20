@@ -34,11 +34,23 @@ class ToolImage:
 
 
 @dataclass
+class ToolFile:
+    """Archivo que una tool generó (ej. un Excel): el chat ofrece descargarlo.
+    `path` es la ruta local; el cliente lo baja por GET /files/{name}."""
+
+    name: str
+    path: str
+    mime_type: str
+    size: int
+
+
+@dataclass
 class ToolResult:
     success: bool
     data: Any = None
     error: str | None = None
     images: list[ToolImage] = field(default_factory=list)
+    files: list[ToolFile] = field(default_factory=list)
 
     def as_text(self) -> str:
         if self.success:

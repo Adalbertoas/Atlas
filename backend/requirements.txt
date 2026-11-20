@@ -27,6 +27,9 @@ requests==2.34.2
 # Búsqueda dentro de PDF (search_documents); opcional: sin esto se saltean los PDF
 pypdf>=5.0
 
+# Exportar tablas a Excel (create_spreadsheet)
+openpyxl==3.1.5
+
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.25.0

@@ -9,6 +9,8 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.api.deps import get_speaker_verifier, get_stt_provider, get_tts_provider
+from app.core.keys import KeySettingError
+from app.voice import voices
 from app.voice.audio import decode_audio
 from app.voice.base import SpeechToTextProvider, TextToSpeechProvider
 from app.voice.speaker import SpeakerVerifier
@@ -28,6 +30,14 @@ class TranscribeResponse(BaseModel):
 
 class SpeakRequest(BaseModel):
     text: str
+    # Otra voz solo para este audio (escuchar una voz antes de elegirla).
+    voice: str | None = None
+    speed: float | None = None
+
+
+class ChooseVoiceRequest(BaseModel):
+    voice: str
+    speed: float | None = None
 
 
 class SpeakerStatus(BaseModel):
@@ -95,8 +105,31 @@ async def transcribe(
 
 @router.post("/speak")
 def speak(body: SpeakRequest, tts: TextToSpeechProvider = Depends(get_tts_provider)) -> Response:
-    audio_bytes = tts.synthesize(body.text)
+    if body.voice is None and body.speed is None:
+        audio_bytes = tts.synthesize(body.text)
+    else:
+        try:
+            voices.validate(body.voice, body.speed)
+        except KeySettingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        audio_bytes = tts.synthesize_as(body.text, voice=body.voice, speed=body.speed)
     return Response(content=audio_bytes, media_type="audio/wav")
+
+
+# ---------- Elegir la voz de ATLAS (compartida por la PC y la tablet) ----------
+
+
+@router.get("/voices")
+def list_voices(tts: TextToSpeechProvider = Depends(get_tts_provider)) -> dict:
+    return voices.status(tts)
+
+
+@router.put("/voice")
+def choose_voice(body: ChooseVoiceRequest, tts: TextToSpeechProvider = Depends(get_tts_provider)) -> dict:
+    try:
+        return voices.choose(tts, body.voice, body.speed)
+    except KeySettingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 # ---------- Huella de voz ("solo responder a mi voz") ----------

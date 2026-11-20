@@ -7,6 +7,7 @@ La API nunca devuelve la clave completa, solo si está configurada y sus
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -14,7 +15,7 @@ import httpx
 
 from app.config import get_settings
 
-ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+ENV_PATH = Path(os.environ.get("ATLAS_ENV_FILE") or Path(__file__).resolve().parents[2] / ".env")
 
 # Solo caracteres seguros: además de validar el formato, impide que un valor
 # con saltos de línea o '=' agregue otras variables al .env.

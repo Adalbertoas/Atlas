@@ -7,6 +7,8 @@ que existe un cliente remoto (móvil) además del escritorio local.
 """
 from __future__ import annotations
 
+import hmac
+
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -31,7 +33,8 @@ def verify_password(password: str) -> bool:
         # Sin contraseña configurada no hay forma segura de loguearse:
         # falla cerrado en vez de aceptar cualquier cosa.
         return False
-    return password == settings.atlas_password
+    # Comparación en tiempo constante: no deja deducir la contraseña midiendo tiempos.
+    return hmac.compare_digest(password.encode("utf-8"), settings.atlas_password.encode("utf-8"))
 
 
 def create_access_token() -> str:

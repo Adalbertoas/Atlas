@@ -29,6 +29,16 @@ from app.core.database import Base
 from app.main import app
 
 
+@pytest.fixture(autouse=True)
+def _reset_login_guard():
+    """Los intentos fallidos de un test no deben bloquear el login de otro."""
+    from app.security.login_guard import login_guard
+
+    login_guard._failures.clear()
+    yield
+    login_guard._failures.clear()
+
+
 @pytest.fixture()
 def db_session():
     # StaticPool: una sola conexión compartida, necesaria para que las tablas
